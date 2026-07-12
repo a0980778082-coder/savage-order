@@ -57,9 +57,36 @@
       <div id="menuRoot" class="menu-root" hidden></div>
     </section>
 
-    <section class="panel" aria-labelledby="payment-title">
+    <section class="panel wish-panel" aria-labelledby="wish-title">
       <div class="section-heading">
         <span class="step">3</span>
+        <div>
+          <h2 id="wish-title">配菜許願池</h2>
+          <p>告訴我們你想吃的配菜，會依食材成本、季節與供應狀況評估採納</p>
+        </div>
+      </div>
+      <label class="field full">
+        <span>想許願的配菜（選填）</span>
+        <textarea id="sideDishWish" rows="3" maxlength="80" placeholder="例如：玉米筍、蒸蛋、炒水蓮、涼拌小黃瓜"></textarea>
+      </label>
+      <p class="wish-note">💡 許願不代表當次餐盒一定會提供；被採納的配菜可能在未來菜單中出現。</p>
+    </section>
+
+    <section class="panel reward-panel" aria-labelledby="reward-title">
+      <div class="reward-copy">
+        <span class="reward-emoji">🎡</span>
+        <div>
+          <h2 id="reward-title">小野人好運輪盤</h2>
+          <p>累積下單達指定次數即可轉一次，獎品可用於下一張訂單。</p>
+        </div>
+      </div>
+      <div class="reward-tags"><span>免費蒸蛋</span><span>折抵 $5</span></div>
+      <p class="reward-rule">下單次數以聯絡電話累積；每次抽獎由系統記錄，獎品不可折現。</p>
+    </section>
+
+    <section class="panel" aria-labelledby="payment-title">
+      <div class="section-heading">
+        <span class="step">4</span>
         <div><h2 id="payment-title">付款與發票</h2><p>LINE Pay 與轉帳資訊會依選項顯示</p></div>
       </div>
 
@@ -92,6 +119,12 @@
       </fieldset>
       <label id="invoiceExtraField" class="field" hidden><span id="invoiceExtraLabel">載具號碼</span><input id="invoiceCarrier" type="text" maxlength="20" placeholder="例如：/ABC1234"></label>
 
+      <label class="field full coupon-field">
+        <span>輪盤優惠碼（選填）</span>
+        <input id="couponCode" type="text" maxlength="20" placeholder="例如：SAV-ABC123" autocomplete="off">
+        <small>優惠碼須與本次聯絡電話相同，且每組只能使用一次。</small>
+      </label>
+
       <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣、餐具需求或其他備註"></textarea></label>
     </section>
   </main>
@@ -107,13 +140,44 @@
     <h2>訂單送出成功</h2>
     <p>訂單編號：<strong id="successOrderNo"></strong></p>
     <p>總金額：<strong>$<span id="successTotal"></span></strong></p>
+    <div id="rewardProgress" class="reward-progress" hidden>
+      <strong id="rewardProgressTitle"></strong>
+      <p id="rewardProgressText"></p>
+      <button id="spinBtn" class="spin-button" type="button" hidden>🎡 立即轉好運輪盤</button>
+    </div>
     <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
+  </dialog>
+
+  <dialog id="wheelDialog" class="wheel-dialog">
+    <button id="closeWheelBtn" class="dialog-close" type="button" aria-label="關閉">×</button>
+    <h2>小野人好運輪盤</h2>
+    <p>祝你好運！獎品會綁定本次聯絡電話。</p>
+    <div class="wheel-stage">
+      <div class="wheel-pointer">▼</div>
+      <div id="prizeWheel" class="prize-wheel">
+        <span class="wheel-label label-a">免費蒸蛋</span>
+        <span class="wheel-label label-b">折 $5</span>
+        <span class="wheel-label label-c">免費蒸蛋</span>
+        <span class="wheel-label label-d">折 $5</span>
+      </div>
+    </div>
+    <button id="startSpinBtn" class="spin-button" type="button">開始轉動</button>
+    <div id="spinResult" class="spin-result" hidden>
+      <p>恭喜獲得</p>
+      <strong id="spinPrize"></strong>
+      <div class="coupon-code" id="spinCoupon"></div>
+      <small>下次點餐請填入此優惠碼，有效期限以系統記錄為準。</small>
+    </div>
   </dialog>
 
   <iframe name="submitFrame" id="submitFrame" title="訂單送出" hidden></iframe>
   <form id="submitForm" method="post" target="submitFrame" hidden>
     <input type="hidden" name="action" value="submitOrder">
     <input type="hidden" name="payload" id="payloadInput">
+  </form>
+  <form id="spinForm" method="post" target="submitFrame" hidden>
+    <input type="hidden" name="action" value="spinReward">
+    <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
   <script src="config.js"></script>

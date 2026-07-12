@@ -1,9 +1,9 @@
 (() => {
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null };
   const $ = (id) => document.getElementById(id);
-  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier') };
+  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -34,6 +34,10 @@
     document.querySelectorAll('input[name="paymentMethod"]').forEach(x=>x.addEventListener('change',renderPaymentChoice));
     document.querySelectorAll('input[name="invoiceType"]').forEach(x=>x.addEventListener('change',renderInvoiceChoice));
     els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());
+    $('spinBtn').addEventListener('click',openWheel);
+    $('startSpinBtn').addEventListener('click',startSpin);
+    $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
+    $('couponCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/\s+/g,'')});
     window.addEventListener('message',handleSubmitResponse);
   }
 
@@ -94,13 +98,85 @@
     const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
     return true;
   }
-  function buildPayload(){return {mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function buildPayload(){return {mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
   function submitOrder(){
     if(state.submitting||!validate())return;state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
     $('submitForm').action=cfg.API_URL;$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
     setTimeout(()=>{if(state.submitting){state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();toast('送出逾時，請確認網路後再試一次')}},20000);
   }
-  function handleSubmitResponse(event){if(!event.data||event.data.source!=='savage-order-api')return;state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();const d=event.data;if(d.ok){$('successOrderNo').textContent=d.orderNo;$('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');$('successDialog').showModal()}else toast(d.error||'訂單送出失敗')}
+  function handleSubmitResponse(event){
+    if(!event.data||event.data.source!=='savage-order-api')return;
+    const d=event.data;
+    if(d.action==='spinReward'){handleSpinResponse(d);return}
+    state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();
+    if(d.ok){
+      state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};
+      $('successOrderNo').textContent=d.orderNo;
+      $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
+      renderRewardProgress(d.rewardStatus);
+      $('successDialog').showModal();
+    }else toast(d.error||'訂單送出失敗')
+  }
+
+  function renderRewardProgress(status){
+    const box=$('rewardProgress'),btn=$('spinBtn');
+    if(!status){box.hidden=true;return}
+    box.hidden=false;
+    $('rewardProgressTitle').textContent=`你已累積 ${status.orderCount} 次下單`;
+    if(status.availableSpins>0){
+      $('rewardProgressText').textContent=`目前可轉 ${status.availableSpins} 次好運輪盤！`;
+      btn.hidden=false;
+    }else{
+      const remain=Math.max(0,status.nextSpinIn||0);
+      $('rewardProgressText').textContent=remain===0?'即將獲得下一次抽獎資格':`再下單 ${remain} 次，就能轉一次輪盤`;
+      btn.hidden=true;
+    }
+  }
+
+  function openWheel(){
+    if(!state.lastOrder)return;
+    $('successDialog').close();
+    els.prizeWheel.style.transform='rotate(0deg)';
+    els.spinResult.hidden=true;
+    $('startSpinBtn').hidden=false;
+    $('startSpinBtn').disabled=false;
+    els.wheelDialog.showModal();
+  }
+
+  function startSpin(){
+    if(state.spinning||!state.lastOrder)return;
+    state.spinning=true;
+    $('startSpinBtn').disabled=true;
+    $('startSpinBtn').textContent='轉動中…';
+    $('spinPayloadInput').value=JSON.stringify({phone:state.lastOrder.phone,orderNo:state.lastOrder.orderNo});
+    $('spinForm').action=cfg.API_URL;
+    $('spinForm').submit();
+  }
+
+  function handleSpinResponse(d){
+    if(!state.spinning)return;
+    if(!d.ok){
+      state.spinning=false;
+      $('startSpinBtn').disabled=false;
+      $('startSpinBtn').textContent='開始轉動';
+      toast(d.error||'輪盤暫時無法使用');
+      return;
+    }
+    const prize=d.reward||'折抵 $5';
+    const target=prize.includes('蒸蛋')?2925:3105;
+    els.prizeWheel.style.transform=`rotate(${target}deg)`;
+    setTimeout(()=>{
+      state.spinning=false;
+      $('startSpinBtn').hidden=true;
+      $('startSpinBtn').textContent='開始轉動';
+      els.spinResult.hidden=false;
+      $('spinPrize').textContent=prize;
+      $('spinCoupon').textContent=d.couponCode||'';
+      if(state.lastOrder&&state.lastOrder.rewardStatus){
+        state.lastOrder.rewardStatus.availableSpins=Math.max(0,Number(state.lastOrder.rewardStatus.availableSpins||1)-1);
+      }
+    },4300);
+  }
   function showFatal(msg){els.menuLoading.innerHTML=`<strong>載入失敗</strong><br>${esc(msg)}<br><button type="button" class="primary-button" onclick="location.reload()">重新載入</button>`}
   function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.hidden=true,3200)}
   function categoryEmoji(name){if(name.includes('限量'))return'🔥';if(name.includes('百元'))return'🍱';if(name.includes('雞'))return'🐔';if(name.includes('豚'))return'🐷';if(name.includes('牛'))return'🐂';if(name.includes('魚'))return'🐟';if(name.includes('時蔬'))return'🥦';if(name.includes('湯'))return'🥣';if(name.includes('飲'))return'🥤';if(name.includes('加購'))return'➕';return'🍽️'}
