@@ -1,0 +1,110 @@
+(() => {
+  'use strict';
+  const cfg = window.SAVAGE_CONFIG || {};
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false };
+  const $ = (id) => document.getElementById(id);
+  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier') };
+
+  function jsonp(action, params={}) {
+    return new Promise((resolve,reject) => {
+      const cb='__savage_cb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const script=document.createElement('script');
+      const timeout=setTimeout(()=>cleanup(new Error('連線逾時，請稍後重試')),15000);
+      function cleanup(err,data){clearTimeout(timeout);delete window[cb];script.remove();err?reject(err):resolve(data)}
+      window[cb]=(data)=>cleanup(null,data);
+      const q=new URLSearchParams({action,callback:cb,...params});
+      script.src=cfg.API_URL+'?'+q.toString();script.onerror=()=>cleanup(new Error('無法連線到訂單系統'));document.head.appendChild(script);
+    });
+  }
+
+  async function init(){
+    if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
+    bindEvents();
+    try{
+      const res=await jsonp('publicData');
+      if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
+      state.malls=res.data.malls||[];state.menu=res.data.menu||[];state.settings=res.data.settings||{};
+      renderMallOptions();renderMenu();renderPaymentInfo();
+      els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
+    }catch(err){showFatal(err.message||String(err));}
+  }
+
+  function bindEvents(){
+    els.mall.addEventListener('change',onMallChange);els.building.addEventListener('change',onBuildingChange);
+    document.querySelectorAll('input[name="paymentMethod"]').forEach(x=>x.addEventListener('change',renderPaymentChoice));
+    document.querySelectorAll('input[name="invoiceType"]').forEach(x=>x.addEventListener('change',renderInvoiceChoice));
+    els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());
+    window.addEventListener('message',handleSubmitResponse);
+  }
+
+  function renderMallOptions(){
+    const malls=[...new Map(state.malls.map(x=>[x['百貨'],x])).keys()];
+    els.mall.innerHTML='<option value="">請選擇百貨商場</option>'+malls.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  }
+  function onMallChange(){
+    const rows=state.malls.filter(x=>x['百貨']===els.mall.value);const buildings=[...new Set(rows.map(x=>x['館別']))];
+    els.building.disabled=!els.mall.value;els.floor.disabled=true;
+    els.building.innerHTML='<option value="">請選擇館別／棟別</option>'+buildings.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    els.floor.innerHTML='<option value="">請先選館別</option>';
+  }
+  function onBuildingChange(){
+    const rows=state.malls.filter(x=>x['百貨']===els.mall.value&&x['館別']===els.building.value).sort((a,b)=>Number(a['樓層排序'])-Number(b['樓層排序']));
+    els.floor.disabled=!els.building.value;els.floor.innerHTML='<option value="">請選擇樓層</option>'+rows.map(x=>`<option value="${esc(x['樓層'])}">${esc(x['樓層'])}</option>`).join('');
+  }
+
+  function renderMenu(){
+    const groups=[...new Map(state.menu.sort((a,b)=>Number(a['分類排序'])-Number(b['分類排序'])||Number(a['品項排序'])-Number(b['品項排序'])).map(x=>[x['分類'],[]])).entries()];
+    state.menu.forEach(item=>{const g=groups.find(x=>x[0]===item['分類']);if(g)g[1].push(item)});
+    els.menuRoot.innerHTML=groups.map(([name,items],idx)=>`<section class="menu-category"><button class="category-button" type="button" aria-expanded="${idx<2?'true':'false'}"><span>${categoryEmoji(name)} ${esc(name)}</span><span class="category-count">${items.length}項</span></button><div class="category-items" ${idx<2?'':'hidden'}>${items.map(renderItem).join('')}</div></section>`).join('');
+    els.menuRoot.querySelectorAll('.category-button').forEach(btn=>btn.addEventListener('click',()=>{const box=btn.nextElementSibling;box.hidden=!box.hidden;btn.setAttribute('aria-expanded',String(!box.hidden))}));
+    els.menuRoot.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',onQtyClick));
+    els.menuRoot.querySelectorAll('select[data-custom]').forEach(sel=>sel.addEventListener('change',onCustomChange));
+  }
+  function renderItem(item){
+    const key=item['品項'];const rice=String(item['飯量可選']).toLowerCase()!=='false';const limited=String(item['限量品']).toLowerCase()==='true';
+    return `<article class="menu-item" data-item="${escAttr(key)}"><div class="item-main"><div><div class="item-name">${esc(key)}</div><div class="item-price">$${Number(item['價格'])}</div>${limited?`<div class="stock-note">今日剩餘：${Number(item['每日庫存']||0)} 份</div>`:''}</div><div class="qty-control"><button type="button" data-action="minus" data-name="${escAttr(key)}" aria-label="減少">−</button><span class="qty-value" data-qty="${escAttr(key)}">0</span><button type="button" data-action="plus" data-name="${escAttr(key)}" aria-label="增加">＋</button></div></div>${rice?`<div class="custom-options" data-options="${escAttr(key)}" hidden><label>飯種<select data-custom="rice" data-name="${escAttr(key)}"><option value="紫米飯">紫米飯</option><option value="紅藜麥白飯">紅藜麥白飯</option></select></label><label>飯量<select data-custom="amount" data-name="${escAttr(key)}"><option value="正常飯">正常飯</option><option value="半飯">半飯</option><option value="無飯">無飯</option></select></label></div>`:''}</article>`;
+  }
+  function onQtyClick(e){
+    const name=e.currentTarget.dataset.name;const item=state.menu.find(x=>x['品項']===name);if(!item)return;
+    const entry=state.cart.get(name)||{item,qty:0,rice:'紫米飯',amount:'正常飯'};
+    if(e.currentTarget.dataset.action==='plus'){
+      if(String(item['限量品']).toLowerCase()==='true'&&entry.qty>=Number(item['每日庫存']||0)){toast('此限量餐盒庫存不足');return}
+      entry.qty++;
+    } else entry.qty=Math.max(0,entry.qty-1);
+    state.cart.set(name,entry);document.querySelector(`[data-qty="${cssEsc(name)}"]`).textContent=entry.qty;
+    const options=document.querySelector(`[data-options="${cssEsc(name)}"]`);if(options)options.hidden=entry.qty===0;
+    updateSummary();
+  }
+  function onCustomChange(e){const entry=state.cart.get(e.target.dataset.name);if(!entry)return;entry[e.target.dataset.custom]=e.target.value;state.cart.set(e.target.dataset.name,entry)}
+  function updateSummary(){
+    const entries=[...state.cart.values()].filter(x=>x.qty>0);const qty=entries.reduce((s,x)=>s+x.qty,0);const total=entries.reduce((s,x)=>s+Number(x.item['價格'])*x.qty,0);
+    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.disabled=qty===0||state.submitting;
+  }
+
+  function renderPaymentInfo(){const s=state.settings;$('bankName').textContent=s['銀行名稱']||'—';$('bankCode').textContent=s['銀行代碼']||'—';$('bankAccount').textContent=s['轉帳帳號']||'—';$('bankHolder').textContent=s['轉帳戶名']||'—';if(s.LINE_PAY_QR_URL){$('linePayQr').src=s.LINE_PAY_QR_URL;$('linePayQr').hidden=false;$('linePayMissing').hidden=true}}
+  function renderPaymentChoice(){const v=document.querySelector('input[name="paymentMethod"]:checked').value;els.linePayBox.hidden=v!=='LINE Pay';els.transferBox.hidden=v!=='轉帳'}
+  function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
+
+  function validate(){
+    const required=[['mall','請選擇百貨'],['building','請選擇館別'],['floor','請選擇樓層'],['counterName','請填寫櫃位／品牌'],['contactName','請填寫聯絡人'],['contactPhone','請填寫聯絡電話']];
+    for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
+    if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
+    const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
+    if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
+    const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
+    return true;
+  }
+  function buildPayload(){return {mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function submitOrder(){
+    if(state.submitting||!validate())return;state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
+    $('submitForm').action=cfg.API_URL;$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
+    setTimeout(()=>{if(state.submitting){state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();toast('送出逾時，請確認網路後再試一次')}},20000);
+  }
+  function handleSubmitResponse(event){if(!event.data||event.data.source!=='savage-order-api')return;state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();const d=event.data;if(d.ok){$('successOrderNo').textContent=d.orderNo;$('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');$('successDialog').showModal()}else toast(d.error||'訂單送出失敗')}
+  function showFatal(msg){els.menuLoading.innerHTML=`<strong>載入失敗</strong><br>${esc(msg)}<br><button type="button" class="primary-button" onclick="location.reload()">重新載入</button>`}
+  function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.hidden=true,3200)}
+  function categoryEmoji(name){if(name.includes('限量'))return'🔥';if(name.includes('百元'))return'🍱';if(name.includes('雞'))return'🐔';if(name.includes('豚'))return'🐷';if(name.includes('牛'))return'🐂';if(name.includes('魚'))return'🐟';if(name.includes('時蔬'))return'🥦';if(name.includes('湯'))return'🥣';if(name.includes('飲'))return'🥤';if(name.includes('加購'))return'➕';return'🍽️'}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  const escAttr=esc;function cssEsc(s){return window.CSS&&CSS.escape?CSS.escape(s):String(s).replace(/(["\\])/g,'\\$1')}
+  init();
+})();

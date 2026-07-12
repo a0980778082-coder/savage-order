@@ -1,51 +1,122 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>小野人百貨點餐系統</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, sans-serif;
-      background: #f3f7f8;
-      color: #17343b;
-    }
-
-    main {
-      max-width: 520px;
-      margin: 0 auto;
-      padding: 48px 20px;
-      text-align: center;
-    }
-
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 32px 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.08);
-    }
-
-    h1 {
-      margin-top: 0;
-    }
-
-    .status {
-      margin-top: 20px;
-      padding: 14px;
-      background: #dff3f6;
-      border-radius: 12px;
-      font-weight: 700;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#86c6d1">
+  <meta name="description" content="小野人餐盒製造所百貨專屬點餐系統">
+  <title>小野人百貨點餐</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main>
-    <section class="card">
-      <h1>小野人百貨點餐系統</h1>
-      <p>GitHub Pages 測試頁面</p>
-      <div class="status">網站建立成功</div>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand-mark">小野人</div>
+      <div>
+        <p class="eyebrow">百貨專屬外送</p>
+        <h1>今天想吃什麼？</h1>
+        <p class="hero-copy">一個就送，直接送到櫃位</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="panel" aria-labelledby="delivery-title">
+      <div class="section-heading">
+        <span class="step">1</span>
+        <div><h2 id="delivery-title">配送與聯絡資料</h2><p>請依序選擇百貨、館別與樓層</p></div>
+      </div>
+
+      <div class="form-grid">
+        <label class="field"><span>百貨商場</span><select id="mall" required><option value="">載入中…</option></select></label>
+        <label class="field"><span>館別／棟別</span><select id="building" required disabled><option value="">請先選百貨</option></select></label>
+        <label class="field"><span>樓層</span><select id="floor" required disabled><option value="">請先選館別</option></select></label>
+        <label class="field"><span>櫃位／品牌名稱</span><input id="counterName" type="text" maxlength="40" placeholder="例如：LV、NIKE" autocomplete="organization" required></label>
+        <label class="field"><span>聯絡人姓名</span><input id="contactName" type="text" maxlength="30" placeholder="例如：王小姐" autocomplete="name" required></label>
+        <label class="field"><span>聯絡電話</span><input id="contactPhone" type="tel" inputmode="tel" maxlength="20" placeholder="例如：0912345678" autocomplete="tel" required></label>
+      </div>
+
+      <fieldset class="choice-fieldset">
+        <legend>餐期</legend>
+        <div class="segmented">
+          <label><input type="radio" name="mealPeriod" value="午餐" checked><span>午餐</span></label>
+          <label><input type="radio" name="mealPeriod" value="晚餐"><span>晚餐</span></label>
+        </div>
+      </fieldset>
+    </section>
+
+    <section class="panel menu-panel" aria-labelledby="menu-title">
+      <div class="section-heading">
+        <span class="step">2</span>
+        <div><h2 id="menu-title">選擇餐點</h2><p>點「＋」增加數量；一般餐盒可選飯種與飯量</p></div>
+      </div>
+      <div id="menuLoading" class="loading-card"><span class="spinner"></span>正在載入最新菜單…</div>
+      <div id="menuRoot" class="menu-root" hidden></div>
+    </section>
+
+    <section class="panel" aria-labelledby="payment-title">
+      <div class="section-heading">
+        <span class="step">3</span>
+        <div><h2 id="payment-title">付款與發票</h2><p>LINE Pay 與轉帳資訊會依選項顯示</p></div>
+      </div>
+
+      <fieldset class="choice-fieldset">
+        <legend>付款方式</legend>
+        <div class="choice-cards three">
+          <label><input type="radio" name="paymentMethod" value="現金" checked><span>現金</span></label>
+          <label><input type="radio" name="paymentMethod" value="LINE Pay"><span>LINE Pay</span></label>
+          <label><input type="radio" name="paymentMethod" value="轉帳"><span>轉帳</span></label>
+        </div>
+      </fieldset>
+
+      <div id="linePayBox" class="payment-box" hidden>
+        <strong>請掃描 LINE Pay QR Code</strong>
+        <img id="linePayQr" alt="LINE Pay QR Code" hidden>
+        <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
+      </div>
+      <div id="transferBox" class="payment-box" hidden>
+        <strong>轉帳資訊</strong>
+        <dl><div><dt>銀行</dt><dd id="bankName">—</dd></div><div><dt>代碼</dt><dd id="bankCode">—</dd></div><div><dt>帳號</dt><dd id="bankAccount">—</dd></div><div><dt>戶名</dt><dd id="bankHolder">—</dd></div></dl>
+      </div>
+
+      <fieldset class="choice-fieldset">
+        <legend>發票方式</legend>
+        <div class="choice-cards three">
+          <label><input type="radio" name="invoiceType" value="紙本發票" checked><span>紙本發票</span></label>
+          <label><input type="radio" name="invoiceType" value="手機條碼載具"><span>手機載具</span></label>
+          <label><input type="radio" name="invoiceType" value="公司統編"><span>公司統編</span></label>
+        </div>
+      </fieldset>
+      <label id="invoiceExtraField" class="field" hidden><span id="invoiceExtraLabel">載具號碼</span><input id="invoiceCarrier" type="text" maxlength="20" placeholder="例如：/ABC1234"></label>
+
+      <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣、餐具需求或其他備註"></textarea></label>
     </section>
   </main>
+
+  <div class="bottom-bar" aria-live="polite">
+    <div><small>已選 <strong id="totalQty">0</strong> 項</small><strong class="total-price">$<span id="totalPrice">0</span></strong></div>
+    <button id="submitBtn" class="primary-button" type="button" disabled>送出訂單</button>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="successDialog" class="success-dialog">
+    <div class="success-icon">✓</div>
+    <h2>訂單送出成功</h2>
+    <p>訂單編號：<strong id="successOrderNo"></strong></p>
+    <p>總金額：<strong>$<span id="successTotal"></span></strong></p>
+    <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
+  </dialog>
+
+  <iframe name="submitFrame" id="submitFrame" title="訂單送出" hidden></iframe>
+  <form id="submitForm" method="post" target="submitFrame" hidden>
+    <input type="hidden" name="action" value="submitOrder">
+    <input type="hidden" name="payload" id="payloadInput">
+  </form>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
