@@ -53,6 +53,13 @@
         <span class="step">2</span>
         <div><h2 id="menu-title">選擇餐點</h2><p>點「＋」增加數量；一般餐盒可選飯種與飯量</p></div>
       </div>
+      <label class="category-jump" for="categorySelect">
+        <span>快速選擇餐點分類</span>
+        <select id="categorySelect" disabled>
+          <option value="">菜單載入中…</option>
+        </select>
+        <small>選擇雞肉、豬肉、魚類等分類後，系統會直接展開並跳到該區。</small>
+      </label>
       <div id="menuLoading" class="loading-card"><span class="spinner"></span>正在載入最新菜單…</div>
       <div id="menuRoot" class="menu-root" hidden></div>
     </section>
@@ -157,16 +164,16 @@
       <div id="prizeWheel" class="prize-wheel">
         <span class="wheel-label label-a">免費蒸蛋</span>
         <span class="wheel-label label-b">折 $5</span>
-        <span class="wheel-label label-c">免費蒸蛋</span>
-        <span class="wheel-label label-d">折 $5</span>
+        <span class="wheel-label label-c">下次加油</span>
+        <span class="wheel-label label-d">下次加油</span>
       </div>
     </div>
     <button id="startSpinBtn" class="spin-button" type="button">開始轉動</button>
     <div id="spinResult" class="spin-result" hidden>
-      <p>恭喜獲得</p>
+      <p id="spinResultLead">恭喜獲得</p>
       <strong id="spinPrize"></strong>
       <div class="coupon-code" id="spinCoupon"></div>
-      <small>下次點餐請填入此優惠碼，有效期限以系統記錄為準。</small>
+      <small id="spinResultNote">下次點餐請填入此優惠碼，有效期限以系統記錄為準。</small>
     </div>
   </dialog>
 

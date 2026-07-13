@@ -3,7 +3,7 @@
   const cfg = window.SAVAGE_CONFIG || {};
   const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null };
   const $ = (id) => document.getElementById(id);
-  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult') };
+  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -59,10 +59,32 @@
   function renderMenu(){
     const groups=[...new Map(state.menu.sort((a,b)=>Number(a['分類排序'])-Number(b['分類排序'])||Number(a['品項排序'])-Number(b['品項排序'])).map(x=>[x['分類'],[]])).entries()];
     state.menu.forEach(item=>{const g=groups.find(x=>x[0]===item['分類']);if(g)g[1].push(item)});
-    els.menuRoot.innerHTML=groups.map(([name,items],idx)=>`<section class="menu-category"><button class="category-button" type="button" aria-expanded="${idx<2?'true':'false'}"><span>${categoryEmoji(name)} ${esc(name)}</span><span class="category-count">${items.length}項</span></button><div class="category-items" ${idx<2?'':'hidden'}>${items.map(renderItem).join('')}</div></section>`).join('');
-    els.menuRoot.querySelectorAll('.category-button').forEach(btn=>btn.addEventListener('click',()=>{const box=btn.nextElementSibling;box.hidden=!box.hidden;btn.setAttribute('aria-expanded',String(!box.hidden))}));
+
+    els.categorySelect.innerHTML='<option value="">請選擇餐點分類</option>'+groups.map(([name])=>`<option value="${escAttr(name)}">${categoryEmoji(name)} ${esc(name)}</option>`).join('');
+    els.categorySelect.disabled=false;
+
+    els.menuRoot.innerHTML=groups.map(([name,items],idx)=>`<section class="menu-category" id="category-${idx}" data-category="${escAttr(name)}"><button class="category-button" type="button" aria-expanded="false"><span>${categoryEmoji(name)} ${esc(name)}</span><span class="category-meta"><span class="category-count">${items.length}項</span><span class="category-chevron" aria-hidden="true">⌄</span></span></button><div class="category-items" hidden>${items.map(renderItem).join('')}</div></section>`).join('');
+
+    els.menuRoot.querySelectorAll('.category-button').forEach(btn=>btn.addEventListener('click',()=>toggleCategory(btn)));
+    els.categorySelect.addEventListener('change',jumpToCategory);
     els.menuRoot.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',onQtyClick));
     els.menuRoot.querySelectorAll('select[data-custom]').forEach(sel=>sel.addEventListener('change',onCustomChange));
+  }
+
+  function toggleCategory(btn, forceOpen){
+    const box=btn.nextElementSibling;
+    const shouldOpen=forceOpen===true?true:forceOpen===false?false:box.hidden;
+    box.hidden=!shouldOpen;
+    btn.setAttribute('aria-expanded',String(shouldOpen));
+  }
+
+  function jumpToCategory(){
+    const name=els.categorySelect.value;
+    if(!name)return;
+    const target=[...els.menuRoot.querySelectorAll('.menu-category')].find(section=>section.dataset.category===name);
+    if(!target)return;
+    els.menuRoot.querySelectorAll('.menu-category').forEach(section=>toggleCategory(section.querySelector('.category-button'),section===target));
+    requestAnimationFrame(()=>target.scrollIntoView({behavior:'smooth',block:'start'}));
   }
   function renderItem(item){
     const key=item['品項'];const rice=String(item['飯量可選']).toLowerCase()!=='false';const limited=String(item['限量品']).toLowerCase()==='true';
@@ -162,16 +184,20 @@
       toast(d.error||'輪盤暫時無法使用');
       return;
     }
-    const prize=d.reward||'折抵 $5';
-    const target=prize.includes('蒸蛋')?2925:3105;
+    const prize=d.reward||'沒中，下次加油';
+    const isNoWin=prize.includes('沒中');
+    const target=prize.includes('蒸蛋')?2925:(prize.includes('折抵')?3045:3165);
     els.prizeWheel.style.transform=`rotate(${target}deg)`;
     setTimeout(()=>{
       state.spinning=false;
       $('startSpinBtn').hidden=true;
       $('startSpinBtn').textContent='開始轉動';
       els.spinResult.hidden=false;
-      $('spinPrize').textContent=prize;
+      $('spinPrize').textContent=isNoWin?'這次沒中，下次加油！':prize;
+      $('spinResultLead').textContent=isNoWin?'再接再厲':'恭喜獲得';
+      $('spinCoupon').hidden=isNoWin;
       $('spinCoupon').textContent=d.couponCode||'';
+      $('spinResultNote').textContent=isNoWin?'完成下一輪累積後，還可以再挑戰一次。':'下次點餐請填入此優惠碼，有效期限以系統記錄為準。';
       if(state.lastOrder&&state.lastOrder.rewardStatus){
         state.lastOrder.rewardStatus.availableSpins=Math.max(0,Number(state.lastOrder.rewardStatus.availableSpins||1)-1);
       }
