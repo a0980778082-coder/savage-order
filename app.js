@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
+  const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
   const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null };
   const $ = (id) => document.getElementById(id);
   const els = { mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult') };
@@ -24,7 +25,7 @@
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
       state.malls=res.data.malls||[];state.menu=res.data.menu||[];state.settings=res.data.settings||{};
-      renderMallOptions();renderMenu();renderPaymentInfo();
+      renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
     }catch(err){showFatal(err.message||String(err));}
   }
@@ -38,7 +39,38 @@
     $('startSpinBtn').addEventListener('click',startSpin);
     $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
     $('couponCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/\s+/g,'')});
+    $('clearDeliveryMemory').addEventListener('click',clearDeliveryMemory);
     window.addEventListener('message',handleSubmitResponse);
+  }
+
+  function restoreDeliveryProfile(){
+    let profile=null;
+    try{profile=JSON.parse(localStorage.getItem(DELIVERY_MEMORY_KEY)||'null')}catch(ignore){}
+    if(!profile)return;
+    if(profile.mall){els.mall.value=profile.mall;onMallChange()}
+    if(profile.building){els.building.value=profile.building;onBuildingChange()}
+    if(profile.floor)els.floor.value=profile.floor;
+    $('counterName').value=profile.counterName||'';
+    $('contactName').value=profile.contactName||'';
+    $('contactPhone').value=profile.contactPhone||'';
+    $('rememberDelivery').checked=true;
+    if(profile.mall||profile.counterName||profile.contactPhone)setTimeout(()=>toast('已帶入上次配送資料'),350);
+  }
+
+  function saveDeliveryProfile(){
+    if(!$('rememberDelivery').checked){localStorage.removeItem(DELIVERY_MEMORY_KEY);return}
+    const profile={
+      mall:els.mall.value,building:els.building.value,floor:els.floor.value,
+      counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),
+      contactPhone:$('contactPhone').value.trim(),savedAt:new Date().toISOString()
+    };
+    try{localStorage.setItem(DELIVERY_MEMORY_KEY,JSON.stringify(profile))}catch(ignore){}
+  }
+
+  function clearDeliveryMemory(){
+    localStorage.removeItem(DELIVERY_MEMORY_KEY);
+    $('rememberDelivery').checked=false;
+    toast('已清除這台手機儲存的配送資料');
   }
 
   function renderMallOptions(){
@@ -132,6 +164,7 @@
     if(d.action==='spinReward'){handleSpinResponse(d);return}
     state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();
     if(d.ok){
+      saveDeliveryProfile();
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};
       $('successOrderNo').textContent=d.orderNo;
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
