@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#27616b">
+  <title>小野人員工 POS Key 單</title>
+  <link rel="stylesheet" href="staff.css">
+</head>
+<body>
+  <div id="toast" class="toast" hidden></div>
+  <main class="shell">
+    <section id="loginView" class="login-card">
+      <div class="brand-mark">小野人</div>
+      <h1>員工 POS Key 單</h1>
+      <p>登入後查看今日百貨訂單</p>
+      <label>帳號<input id="username" autocomplete="username" value="staff"></label>
+      <label>密碼<input id="password" type="password" autocomplete="current-password" inputmode="numeric"></label>
+      <button id="loginBtn" class="primary big">登入</button>
+      <p id="loginError" class="error"></p>
+    </section>
+
+    <section id="staffView" hidden>
+      <header class="mobile-header">
+        <div><div class="eyebrow">小野人餐盒製造所</div><h1>待 Key 訂單</h1></div>
+        <button id="logoutBtn" class="ghost">登出</button>
+      </header>
+
+      <section class="sticky-tools">
+        <div class="stats">
+          <div><strong id="pendingCount">0</strong><span>待 Key</span></div>
+          <div><strong id="orderCount">0</strong><span>目前顯示</span></div>
+          <div><strong id="totalAmount">$0</strong><span>金額</span></div>
+        </div>
+        <div class="filter-grid">
+          <select id="mallFilter"><option value="">全部百貨</option></select>
+          <select id="periodFilter"><option value="">全部餐期</option><option value="午餐">午餐</option><option value="晚餐">晚餐</option></select>
+          <select id="modeFilter"><option value="pending">只看待 Key</option><option value="all">全部訂單</option></select>
+          <button id="refreshBtn" class="secondary">重新整理</button>
+        </div>
+      </section>
+
+      <div id="loading" class="loading" hidden>讀取訂單中…</div>
+      <section id="orderList" class="order-list"></section>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="staff.js"></script>
+</body>
+</html>
