@@ -2,9 +2,9 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null };
   const $ = (id) => document.getElementById(id);
-  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult') };
+  const els = { mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -34,7 +34,7 @@
     els.mall.addEventListener('change',onMallChange);els.building.addEventListener('change',onBuildingChange);
     document.querySelectorAll('input[name="paymentMethod"]').forEach(x=>x.addEventListener('change',renderPaymentChoice));
     document.querySelectorAll('input[name="invoiceType"]').forEach(x=>x.addEventListener('change',renderInvoiceChoice));
-    els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());
+    els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());$('orderFailBtn').addEventListener('click',()=>$('orderResultDialog').close());
     $('spinBtn').addEventListener('click',openWheel);
     $('startSpinBtn').addEventListener('click',startSpin);
     $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
@@ -152,25 +152,47 @@
     const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
     return true;
   }
-  function buildPayload(){return {mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function buildPayload(){return {clientRequestId:state.requestId,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function makeRequestId(){
+    if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
+    return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  }
+  function showSubmitOverlay(message){
+    els.submitOverlayText.textContent=message||'訂單送出中，請勿重複點擊';
+    els.submitOverlay.hidden=false;
+    document.body.classList.add('is-submitting');
+  }
+  function hideSubmitOverlay(){
+    els.submitOverlay.hidden=true;
+    document.body.classList.remove('is-submitting');
+  }
   function submitOrder(){
-    if(state.submitting||!validate())return;state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
+    if(state.submitting||!validate())return;
+    if(!state.requestId)state.requestId=makeRequestId();
+    state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
+    showSubmitOverlay('訂單送出中，請勿關閉頁面或重複點擊');
     $('submitForm').action=cfg.API_URL;$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
-    setTimeout(()=>{if(state.submitting){state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();toast('送出逾時，請確認網路後再試一次')}},20000);
+    clearTimeout(state.submitTimer);
+    state.submitTimer=setTimeout(()=>{
+      if(state.submitting){
+        state.submitting=false;els.submitBtn.textContent='重新確認送出';updateSummary();hideSubmitOverlay();
+        toast('連線較久，請按「重新確認送出」；系統會避免重複訂單');
+      }
+    },30000);
   }
   function handleSubmitResponse(event){
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
-    state.submitting=false;els.submitBtn.textContent='送出訂單';updateSummary();
+    clearTimeout(state.submitTimer);state.submitting=false;els.submitBtn.textContent='送出訂單';hideSubmitOverlay();updateSummary();
     if(d.ok){
       saveDeliveryProfile();
-      state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};
+      state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
       $('successOrderNo').textContent=d.orderNo;
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
       renderRewardProgress(d.rewardStatus);
       $('successDialog').showModal();
-    }else toast(d.error||'訂單送出失敗')
+    }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
   }
 
   function renderRewardProgress(status){

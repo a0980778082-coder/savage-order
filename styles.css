@@ -13,3 +13,13 @@
 
 /* V1.5 記住上次配送資料 */
 .delivery-memory{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:15px;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:#f5fafb}.remember-choice{display:flex;align-items:flex-start;gap:10px;cursor:pointer}.remember-choice input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--brand-dark);flex:0 0 auto}.remember-choice span{display:grid;gap:3px}.remember-choice strong{font-size:14px}.remember-choice small{color:var(--muted);font-size:12px;line-height:1.5}.text-button{border:0;background:transparent;color:var(--brand-dark);font:inherit;font-size:13px;font-weight:800;padding:8px;white-space:nowrap;cursor:pointer}@media(max-width:520px){.delivery-memory{align-items:flex-start}.text-button{padding-top:2px}}
+
+
+/* V1.6 送單防重複與明確提示 */
+.submit-overlay{position:fixed;inset:0;z-index:100;background:rgba(16,42,48,.68);display:grid;place-items:center;padding:20px;backdrop-filter:blur(4px)}
+.submit-overlay[hidden]{display:none!important}.submit-overlay-card{width:min(360px,100%);background:#fff;border-radius:24px;padding:30px 24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.28)}
+.submit-overlay-card h2{margin:16px 0 7px;font-size:24px}.submit-overlay-card p{margin:0;color:var(--ink);font-weight:800;line-height:1.6}.submit-overlay-card small{display:block;margin-top:10px;color:var(--muted)}
+.submit-loader{width:64px;height:64px;margin:auto;border:7px solid #dceff2;border-top-color:var(--brand-dark);border-radius:50%;animation:spin .85s linear infinite}
+body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .24s ease-out}@keyframes successPop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+
+.order-fail-dialog .fail-icon{background:#fde6e3;color:#b63838}.order-fail-dialog .primary-button{background:#a93333}

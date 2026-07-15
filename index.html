@@ -149,6 +149,16 @@
     <button id="submitBtn" class="primary-button" type="button" disabled>送出訂單</button>
   </div>
 
+
+  <div id="submitOverlay" class="submit-overlay" hidden role="alert" aria-live="assertive">
+    <div class="submit-overlay-card">
+      <div class="submit-loader" aria-hidden="true"></div>
+      <h2>正在送出訂單</h2>
+      <p id="submitOverlayText">訂單送出中，請勿重複點擊</p>
+      <small>完成後會自動顯示訂單編號</small>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" hidden></div>
   <dialog id="successDialog" class="success-dialog">
     <div class="success-icon">✓</div>
@@ -161,6 +171,13 @@
       <button id="spinBtn" class="spin-button" type="button" hidden>🎡 立即轉好運輪盤</button>
     </div>
     <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
+  </dialog>
+
+  <dialog id="orderResultDialog" class="success-dialog order-fail-dialog">
+    <div class="success-icon fail-icon">!</div>
+    <h2>訂單送出失敗</h2>
+    <p id="orderFailMessage">請確認網路連線後再試一次。</p>
+    <button id="orderFailBtn" class="primary-button" type="button">返回修改</button>
   </dialog>
 
   <dialog id="wheelDialog" class="wheel-dialog">

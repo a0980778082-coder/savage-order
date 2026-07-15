@@ -4,46 +4,78 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#27616b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
   <link rel="stylesheet" href="staff.css">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
+  <div id="blocking" class="blocking" hidden><div class="spinner"></div><b>連線處理中…</b></div>
+
   <main class="shell">
-    <section id="loginView" class="login-card">
-      <div class="brand-mark">小野人</div>
-      <h1>員工 POS Key 單</h1>
-      <p>登入後查看今日百貨訂單</p>
-      <label>帳號<input id="username" autocomplete="username" value="staff"></label>
-      <label>密碼<input id="password" type="password" autocomplete="current-password" inputmode="numeric"></label>
-      <button id="loginBtn" class="primary big">登入</button>
-      <p id="loginError" class="error"></p>
+    <section id="loginView" class="login-wrap">
+      <div class="login-card">
+        <div class="brand-mark">小野人</div>
+        <h1>員工 POS Key 單</h1>
+        <p>登入後查看今日百貨訂單</p>
+        <label>帳號<input id="username" autocomplete="username" value="staff"></label>
+        <label>密碼<input id="password" type="password" autocomplete="current-password" inputmode="numeric"></label>
+        <button id="loginBtn" class="primary big">登入</button>
+        <p id="loginError" class="error" role="alert"></p>
+      </div>
     </section>
 
     <section id="staffView" hidden>
       <header class="mobile-header">
-        <div><div class="eyebrow">小野人餐盒製造所</div><h1>待 Key 訂單</h1></div>
+        <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
         <button id="logoutBtn" class="ghost">登出</button>
       </header>
 
       <section class="sticky-tools">
         <div class="stats">
-          <div><strong id="pendingCount">0</strong><span>待 Key</span></div>
-          <div><strong id="orderCount">0</strong><span>目前顯示</span></div>
-          <div><strong id="totalAmount">$0</strong><span>金額</span></div>
+          <button class="stat active" data-mode-shortcut="pending"><strong id="pendingCount">0</strong><span>待 Key</span></button>
+          <button class="stat" data-mode-shortcut="keyed"><strong id="keyedCount">0</strong><span>已 Key</span></button>
+          <div class="stat"><strong id="orderCount">0</strong><span>目前顯示</span></div>
+          <div class="stat"><strong id="totalAmount">$0</strong><span>顯示金額</span></div>
         </div>
-        <div class="filter-grid">
-          <select id="mallFilter"><option value="">全部百貨</option></select>
-          <select id="periodFilter"><option value="">全部餐期</option><option value="午餐">午餐</option><option value="晚餐">晚餐</option></select>
-          <select id="modeFilter"><option value="pending">只看待 Key</option><option value="all">全部訂單</option></select>
-          <button id="refreshBtn" class="secondary">重新整理</button>
+
+        <div class="period-tabs" role="tablist">
+          <button class="period active" data-period="">全部</button>
+          <button class="period" data-period="午餐">午餐</button>
+          <button class="period" data-period="晚餐">晚餐</button>
+        </div>
+
+        <div id="mallChips" class="mall-chips"><button class="chip active" data-mall="">全部百貨</button></div>
+
+        <div class="tool-row">
+          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="搜尋櫃位、姓名、電話、訂單編號"></label>
+          <button id="refreshBtn" class="refresh" aria-label="重新整理">↻</button>
+        </div>
+
+        <div class="mode-row">
+          <select id="modeFilter">
+            <option value="pending">只看待 Key</option>
+            <option value="keyed">只看已 Key</option>
+            <option value="all">全部訂單</option>
+          </select>
+          <span id="lastUpdated" class="updated">尚未更新</span>
         </div>
       </section>
 
-      <div id="loading" class="loading" hidden>讀取訂單中…</div>
+      <div id="loading" class="loading" hidden><div class="spinner small"></div>讀取訂單中…</div>
       <section id="orderList" class="order-list"></section>
     </section>
   </main>
+
+
+  <dialog id="loginResultDialog" class="result-dialog">
+    <div id="loginResultIcon" class="result-icon">✓</div>
+    <h2 id="loginResultTitle">登入成功</h2>
+    <p id="loginResultMessage">正在載入今日訂單…</p>
+    <button id="loginResultBtn" class="primary big" type="button">確定</button>
+  </dialog>
+
   <script src="config.js"></script>
   <script src="staff.js"></script>
 </body>
