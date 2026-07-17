@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body>
   <header class="hero">
@@ -24,6 +24,7 @@
   </header>
 
   <main class="page-shell">
+    <div id="editBanner" class="edit-banner" hidden>✏️ 正在修改訂單 <strong id="editOrderNo"></strong>；送出後會直接更新原訂單。</div>
     <section class="panel" aria-labelledby="delivery-title">
       <div class="section-heading">
         <span class="step">1</span>
@@ -170,6 +171,7 @@
       <p id="rewardProgressText"></p>
       <button id="spinBtn" class="spin-button" type="button" hidden>🎡 立即轉好運輪盤</button>
     </div>
+    <button id="editOrderBtn" class="spin-button" type="button">✏️ 修改剛才訂單</button>
     <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
   </dialog>
 
@@ -204,7 +206,7 @@
 
   <iframe name="submitFrame" id="submitFrame" title="訂單送出" hidden></iframe>
   <form id="submitForm" method="post" target="submitFrame" hidden>
-    <input type="hidden" name="action" value="submitOrder">
+    <input type="hidden" name="action" id="orderActionInput" value="submitOrder">
     <input type="hidden" name="payload" id="payloadInput">
   </form>
   <form id="spinForm" method="post" target="submitFrame" hidden>
@@ -212,7 +214,7 @@
     <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
-  <script src="config.js?v=33"></script>
-  <script src="app.js?v=33"></script>
+  <script src="config.js?v=35"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '' };
   const $ = (id) => document.getElementById(id);
   const els = { mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText') };
 
@@ -61,7 +61,7 @@
     els.mall.addEventListener('change',onMallChange);els.building.addEventListener('change',onBuildingChange);
     document.querySelectorAll('input[name="paymentMethod"]').forEach(x=>x.addEventListener('change',renderPaymentChoice));
     document.querySelectorAll('input[name="invoiceType"]').forEach(x=>x.addEventListener('change',renderInvoiceChoice));
-    els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());$('orderFailBtn').addEventListener('click',()=>$('orderResultDialog').close());
+    els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());$('editOrderBtn').addEventListener('click',startEditOrder);$('orderFailBtn').addEventListener('click',()=>$('orderResultDialog').close());
     $('spinBtn').addEventListener('click',openWheel);
     $('startSpinBtn').addEventListener('click',startSpin);
     $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
@@ -146,19 +146,17 @@
     requestAnimationFrame(()=>target.scrollIntoView({behavior:'smooth',block:'start'}));
   }
   function renderItem(item){
-    const key=item['品項'];const rice=String(item['飯量可選']).toLowerCase()!=='false';const limited=String(item['限量品']).toLowerCase()==='true';
-    return `<article class="menu-item" data-item="${escAttr(key)}"><div class="item-main"><div><div class="item-name">${esc(key)}</div><div class="item-price">$${Number(item['價格'])}</div>${limited?`<div class="stock-note">今日剩餘：${Number(item['每日庫存']||0)} 份</div>`:''}</div><div class="qty-control"><button type="button" data-action="minus" data-name="${escAttr(key)}" aria-label="減少">−</button><span class="qty-value" data-qty="${escAttr(key)}">0</span><button type="button" data-action="plus" data-name="${escAttr(key)}" aria-label="增加">＋</button></div></div>${rice?`<div class="custom-options" data-options="${escAttr(key)}" hidden><label>飯種<select data-custom="rice" data-name="${escAttr(key)}"><option value="紫米飯">紫米飯</option><option value="紅藜麥白飯">紅藜麥白飯</option></select></label><label>飯量<select data-custom="amount" data-name="${escAttr(key)}"><option value="正常飯">正常飯</option><option value="半飯">半飯</option><option value="無飯">無飯</option></select></label></div>`:''}</article>`;
+    const key=item['品項'],rice=String(item['飯量可選']).toLowerCase()!=='false',limited=String(item['限量品']).toLowerCase()==='true';
+    const soldOut=String(item['今日售完']).toLowerCase()==='true'||(limited&&Number(item['每日庫存']||0)<=0),stock=Number(item['每日庫存']||0),showStock=String(item['顯示庫存']).toLowerCase()==='true'||(item['顯示庫存']===undefined&&limited);
+    return `<article class="menu-item ${soldOut?'sold-out':''}" data-item="${escAttr(key)}"><div class="item-main"><div><div class="item-name">${esc(key)}${soldOut?'<span class="sold-out-badge">今日售完</span>':''}</div><div class="item-price">$${Number(item['價格'])}</div>${limited&&showStock&&!soldOut?`<div class="stock-note">今日剩餘：${stock} 份</div>`:''}</div><div class="qty-control"><button type="button" data-action="minus" data-name="${escAttr(key)}" ${soldOut?'disabled':''}>−</button><span class="qty-value" data-qty="${escAttr(key)}">0</span><button type="button" data-action="plus" data-name="${escAttr(key)}" ${soldOut?'disabled':''}>＋</button></div></div>${rice?`<div class="custom-options" data-options="${escAttr(key)}" hidden><label>飯種<select data-custom="rice" data-name="${escAttr(key)}"><option value="紫米飯">紫米飯</option><option value="紅藜麥白飯">紅藜麥白飯</option></select></label><label>飯量<select data-custom="amount" data-name="${escAttr(key)}"><option value="正常飯">正常飯</option><option value="半飯">半飯</option><option value="無飯">無飯</option></select></label></div>`:''}</article>`;
   }
   function onQtyClick(e){
-    const name=e.currentTarget.dataset.name;const item=state.menu.find(x=>x['品項']===name);if(!item)return;
+    const name=e.currentTarget.dataset.name,item=state.menu.find(x=>x['品項']===name);if(!item)return;
+    const limited=String(item['限量品']).toLowerCase()==='true',soldOut=String(item['今日售完']).toLowerCase()==='true'||(limited&&Number(item['每日庫存']||0)<=0);
+    if(e.currentTarget.dataset.action==='plus'&&soldOut){toast(name+'今日已售完');return}
     const entry=state.cart.get(name)||{item,qty:0,rice:'紫米飯',amount:'正常飯'};
-    if(e.currentTarget.dataset.action==='plus'){
-      if(String(item['限量品']).toLowerCase()==='true'&&entry.qty>=Number(item['每日庫存']||0)){toast('此限量餐盒庫存不足');return}
-      entry.qty++;
-    } else entry.qty=Math.max(0,entry.qty-1);
-    state.cart.set(name,entry);document.querySelector(`[data-qty="${cssEsc(name)}"]`).textContent=entry.qty;
-    const options=document.querySelector(`[data-options="${cssEsc(name)}"]`);if(options)options.hidden=entry.qty===0;
-    updateSummary();
+    if(e.currentTarget.dataset.action==='plus'){if(limited&&entry.qty>=Number(item['每日庫存']||0)){toast(name+'目前只剩 '+Number(item['每日庫存']||0)+' 份');return}entry.qty++;}else entry.qty=Math.max(0,entry.qty-1);
+    state.cart.set(name,entry);document.querySelector(`[data-qty="${cssEsc(name)}"]`).textContent=entry.qty;const options=document.querySelector(`[data-options="${cssEsc(name)}"]`);if(options)options.hidden=entry.qty===0;updateSummary();
   }
   function onCustomChange(e){const entry=state.cart.get(e.target.dataset.name);if(!entry)return;entry[e.target.dataset.custom]=e.target.value;state.cart.set(e.target.dataset.name,entry)}
   function updateSummary(){
@@ -179,7 +177,7 @@
     const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
     return true;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -198,7 +196,7 @@
     if(!state.requestId)state.requestId=makeRequestId();
     state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
     showSubmitOverlay('訂單送出中，請勿關閉頁面或重複點擊');
-    $('submitForm').action=cfg.API_URL;$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
+    $('submitForm').action=cfg.API_URL;$('orderActionInput').value=state.editingOrderNo?'updateCustomerOrder':'submitOrder';$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
     clearTimeout(state.submitTimer);
     state.submitTimer=setTimeout(()=>{
       if(state.submitting){
@@ -215,11 +213,18 @@
     if(d.ok){
       saveDeliveryProfile();
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
-      $('successOrderNo').textContent=d.orderNo;
+      $('successOrderNo').textContent=d.orderNo;$('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
       renderRewardProgress(d.rewardStatus);
       $('successDialog').showModal();
     }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
+  }
+
+
+  function startEditOrder(){
+    if(!state.lastOrder)return;state.editingOrderNo=state.lastOrder.orderNo;state.originalPhone=state.lastOrder.phone;
+    $('successDialog').close();$('editOrderNo').textContent=state.editingOrderNo;$('editBanner').hidden=false;$('submitBtn').textContent='更新原訂單';
+    window.scrollTo({top:0,behavior:'smooth'});toast('可修改餐點與資料，完成後按「更新原訂單」');
   }
 
   function renderRewardProgress(status){

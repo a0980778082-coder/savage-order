@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
-  <link rel="stylesheet" href="staff.css?v=34">
+  <link rel="stylesheet" href="staff.css?v=35">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -29,7 +29,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <button id="logoutBtn" class="ghost">登出</button>
+        <div class="header-actions"><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -67,6 +67,7 @@
       <section id="orderList" class="order-list"></section>
     </section>
   </main>
+  <dialog id="inventoryDialog" class="inventory-dialog"><div class="inventory-head"><div><h2>商品與庫存管理</h2><p>停售、今日售完與補貨會立即影響客人點餐頁</p></div><button id="closeInventoryBtn" class="ghost">關閉</button></div><div class="inventory-tools"><input id="inventorySearch" type="search" placeholder="搜尋商品"><button id="restockAllBtn" class="primary">一鍵補齊限量品</button></div><div id="inventoryList" class="inventory-list"></div></dialog>
 
 
   <dialog id="loginResultDialog" class="result-dialog">
@@ -76,7 +77,7 @@
     <button id="loginResultBtn" class="primary big" type="button">確定</button>
   </dialog>
 
-  <script src="config.js?v=34"></script>
-  <script src="staff.js?v=34"></script>
+  <script src="config.js?v=35"></script>
+  <script src="staff.js?v=35"></script>
 </body>
 </html>

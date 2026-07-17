@@ -6,6 +6,7 @@
   let allRows = [];
   let selectedMall = '';
   let selectedPeriod = '';
+  let inventoryRows = [];
   const pendingRequests = new Map();
 
   const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -220,11 +221,23 @@
     finally { setBlocking(false); }
   }
 
+
+  async function openInventory(){
+    $('inventoryDialog').showModal();$('inventoryList').innerHTML='<div class="loading">載入商品中…</div>';
+    try{const r=await apiPost('inventoryList',{token});inventoryRows=r.rows||[];renderInventory();}catch(e){showToast(e.message,'error')}
+  }
+  function renderInventory(){
+    const q=$('inventorySearch').value.trim().toLowerCase(),rows=inventoryRows.filter(x=>!q||[x.name,x.category].join(' ').toLowerCase().includes(q));
+    $('inventoryList').innerHTML=rows.map(x=>`<article class="inventory-card ${x.soldOut?'sold':''}" data-inventory="${esc(x.name)}"><div class="inventory-title"><span>${esc(x.name)}</span><span>${x.enabled?(x.soldOut?'今日售完':'販售中'):'已停售'}</span></div><div class="inventory-meta">${esc(x.category)}｜$${x.price}${x.limited?'｜限量商品':'｜一般商品'}</div>${x.limited?`<div class="stock-step"><button data-stock-delta="-1">−</button><strong>${x.stock}</strong><button data-stock-delta="1">＋</button></div>`:''}<div class="inventory-actions"><button class="${x.enabled?'danger':'ok'}" data-toggle-enabled>${x.enabled?'停止販售':'恢復販售'}</button><button class="${x.soldOut?'ok':'danger'}" data-toggle-sold>${x.soldOut?'取消售完':'設為售完'}</button>${x.limited?'<button class="neutral" data-stock-set="10">補到10份</button><button class="neutral" data-stock-set="20">補到20份</button>':''}</div></article>`).join('')||'<div class="empty">找不到商品</div>';
+  }
+  async function inventoryChange(name,changes){setBlocking(true);try{await apiPost('inventoryUpdate',{token,itemName:name,changes});const r=await apiPost('inventoryList',{token});inventoryRows=r.rows||[];renderInventory();showToast('商品已更新','success')}catch(e){showToast(e.message,'error')}finally{setBlocking(false)}}
+
   $('loginBtn').addEventListener('click', login);
   $('loginResultBtn').addEventListener('click', () => $('loginResultDialog').close());
   $('password').addEventListener('keydown', e => { if(e.key === 'Enter') login(); });
   $('logoutBtn').addEventListener('click', logout);
   $('refreshBtn').addEventListener('click', loadOrders);
+  $('inventoryBtn').addEventListener('click',openInventory);$('closeInventoryBtn').addEventListener('click',()=>$('inventoryDialog').close());$('inventorySearch').addEventListener('input',renderInventory);$('restockAllBtn').addEventListener('click',async()=>{if(!confirm('確定要把所有限量品補回預設庫存？'))return;setBlocking(true);try{await apiPost('inventoryRestockAll',{token});const r=await apiPost('inventoryList',{token});inventoryRows=r.rows||[];renderInventory();showToast('已完成一鍵補貨','success')}catch(e){showToast(e.message,'error')}finally{setBlocking(false)}});$('inventoryList').addEventListener('click',e=>{const card=e.target.closest('[data-inventory]');if(!card)return;const name=card.dataset.inventory,item=inventoryRows.find(x=>x.name===name);if(!item)return;if(e.target.closest('[data-toggle-enabled]'))inventoryChange(name,{enabled:!item.enabled});else if(e.target.closest('[data-toggle-sold]'))inventoryChange(name,{soldOut:!item.soldOut});else if(e.target.closest('[data-stock-delta]'))inventoryChange(name,{stock:Math.max(0,item.stock+Number(e.target.closest('[data-stock-delta]').dataset.stockDelta))});else if(e.target.closest('[data-stock-set]'))inventoryChange(name,{stock:Number(e.target.closest('[data-stock-set]').dataset.stockSet)});});
   $('searchInput').addEventListener('input', render);
   $('modeFilter').addEventListener('change', render);
   $('mallChips').addEventListener('click', e => { const b=e.target.closest('[data-mall]'); if(!b)return; selectedMall=b.dataset.mall; renderMallChips(); render(); });
