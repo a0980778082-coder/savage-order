@@ -60,7 +60,8 @@
 
 
   function looksLikeFloor(value) {
-    return /^(B\d+|\d+F)$/i.test(String(value || '').trim());
+    const v = String(value || '').trim().toUpperCase();
+    return /^(B\d+|\d+F|RF|R|頂樓|地下\d+樓|\d+樓)$/.test(v);
   }
   function normalizeOrderRows(rows) {
     return rows.map(row => {

@@ -32,20 +32,29 @@
 
 
   function looksLikeFloor(value){
-    return /^(B\d+|\d+F)$/i.test(String(value||'').trim());
+    const v=String(value||'').trim().toUpperCase();
+    return /^(B\d+|\d+F|RF|R|頂樓|地下\d+樓|\d+樓)$/.test(v);
   }
   function normalizeMallRows(rows){
     return rows.map(row=>{
       const copy={...row};
-      const building=String(copy['館別']||'').trim();
-      const floor=String(copy['樓層']||'').trim();
-      // 舊資料曾出現館別與樓層對調；前端自動判斷並修正顯示。
-      if(looksLikeFloor(building) && floor && !looksLikeFloor(floor)){
-        copy['館別']=floor;
-        copy['樓層']=building;
+      const rawBuilding=String(copy['館別']||'').trim();
+      const rawFloor=String(copy['樓層']||'').trim();
+
+      // 百貨樓層表曾出現欄位內容顛倒：館別欄放 1F/B1，樓層欄放本館。
+      // 只要其中一個值像樓層、另一個不像樓層，就固定把樓層格式放回「樓層」。
+      if(looksLikeFloor(rawBuilding) && !looksLikeFloor(rawFloor)){
+        copy['館別']=rawFloor || '本館';
+        copy['樓層']=rawBuilding;
+      }else if(!looksLikeFloor(rawBuilding) && looksLikeFloor(rawFloor)){
+        copy['館別']=rawBuilding || '本館';
+        copy['樓層']=rawFloor;
+      }else{
+        copy['館別']=rawBuilding || '本館';
+        copy['樓層']=rawFloor;
       }
       return copy;
-    });
+    }).filter(row=>row['百貨'] && row['館別'] && row['樓層']);
   }
 
   function bindEvents(){
