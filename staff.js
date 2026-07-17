@@ -31,20 +31,58 @@
     return new Promise((resolve, reject) => {
       const requestId = uid();
       const body = {...payload, requestId};
+
       const frame = document.createElement('iframe');
-      frame.name = 'api_' + requestId; frame.hidden = true;
+      frame.name = 'api_' + requestId;
+      frame.id = frame.name;
+      frame.setAttribute('aria-hidden', 'true');
+      frame.style.position = 'fixed';
+      frame.style.width = '1px';
+      frame.style.height = '1px';
+      frame.style.opacity = '0';
+      frame.style.pointerEvents = 'none';
+      frame.style.border = '0';
+
       const form = document.createElement('form');
-      form.method = 'POST'; form.action = API_URL + '?action=' + encodeURIComponent(action);
-      form.target = frame.name; form.hidden = true;
+      form.method = 'POST';
+      form.action = API_URL + '?action=' + encodeURIComponent(action) + '&_=' + Date.now();
+      form.target = frame.name;
+      form.acceptCharset = 'UTF-8';
+      form.style.display = 'none';
+
       const input = document.createElement('input');
-      input.name = 'payload'; input.value = JSON.stringify(body); form.appendChild(input);
-      document.body.append(frame, form);
+      input.type = 'hidden';
+      input.name = 'payload';
+      input.value = JSON.stringify(body);
+      form.appendChild(input);
+
+      document.body.appendChild(frame);
+      document.body.appendChild(form);
+
+      const cleanup = () => {
+        pendingRequests.delete(requestId);
+        try { frame.remove(); } catch (_) {}
+        try { form.remove(); } catch (_) {}
+      };
+
       const timer = setTimeout(() => {
-        pendingRequests.delete(requestId); frame.remove(); form.remove();
-        reject(new Error('連線逾時：請確認 Apps Script 已部署新版，並重新整理再試'));
+        cleanup();
+        reject(new Error('連線逾時：員工登入請求未收到回覆，請重新整理後再試'));
       }, 20000);
-      pendingRequests.set(requestId, {resolve, reject, frame, form, timer});
-      form.submit();
+
+      pendingRequests.set(requestId, {resolve, reject, frame, form, timer, cleanup});
+
+      // 等 iframe 真正建立完成後再送出，避免 Chrome / iPhone 內建瀏覽器忽略隱藏目標。
+      requestAnimationFrame(() => {
+        try {
+          if (typeof form.requestSubmit === 'function') form.requestSubmit();
+          else form.submit();
+        } catch (err) {
+          clearTimeout(timer);
+          cleanup();
+          reject(new Error('無法送出登入請求：' + (err && err.message ? err.message : err)));
+        }
+      });
     });
   }
 
@@ -54,7 +92,7 @@
     if (!d || d.source !== 'savage-order-api' || !d.requestId) return;
     const req = pendingRequests.get(d.requestId); if (!req) return;
     clearTimeout(req.timer); pendingRequests.delete(d.requestId);
-    req.frame.remove(); req.form.remove();
+    if (req.cleanup) req.cleanup(); else { req.frame.remove(); req.form.remove(); }
     d.ok ? req.resolve(d) : req.reject(new Error(d.error || '操作失敗'));
   });
 
