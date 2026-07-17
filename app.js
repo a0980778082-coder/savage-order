@@ -24,10 +24,28 @@
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
-      state.malls=res.data.malls||[];state.menu=res.data.menu||[];state.settings=res.data.settings||{};
+      state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};
       renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
     }catch(err){showFatal(err.message||String(err));}
+  }
+
+
+  function looksLikeFloor(value){
+    return /^(B\d+|\d+F)$/i.test(String(value||'').trim());
+  }
+  function normalizeMallRows(rows){
+    return rows.map(row=>{
+      const copy={...row};
+      const building=String(copy['館別']||'').trim();
+      const floor=String(copy['樓層']||'').trim();
+      // 舊資料曾出現館別與樓層對調；前端自動判斷並修正顯示。
+      if(looksLikeFloor(building) && floor && !looksLikeFloor(floor)){
+        copy['館別']=floor;
+        copy['樓層']=building;
+      }
+      return copy;
+    });
   }
 
   function bindEvents(){

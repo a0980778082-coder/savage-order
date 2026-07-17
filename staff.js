@@ -42,20 +42,38 @@
       const timer = setTimeout(() => {
         pendingRequests.delete(requestId); frame.remove(); form.remove();
         reject(new Error('連線逾時：請確認 Apps Script 已部署新版，並重新整理再試'));
-      }, 30000);
+      }, 20000);
       pendingRequests.set(requestId, {resolve, reject, frame, form, timer});
       form.submit();
     });
   }
 
   window.addEventListener('message', event => {
-    const d = event.data;
+    let d = event.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (ignore) {} }
     if (!d || d.source !== 'savage-order-api' || !d.requestId) return;
     const req = pendingRequests.get(d.requestId); if (!req) return;
     clearTimeout(req.timer); pendingRequests.delete(d.requestId);
     req.frame.remove(); req.form.remove();
     d.ok ? req.resolve(d) : req.reject(new Error(d.error || '操作失敗'));
   });
+
+
+  function looksLikeFloor(value) {
+    return /^(B\d+|\d+F)$/i.test(String(value || '').trim());
+  }
+  function normalizeOrderRows(rows) {
+    return rows.map(row => {
+      const copy = {...row};
+      const building = String(copy['館別'] || '').trim();
+      const floor = String(copy['樓層'] || '').trim();
+      if (looksLikeFloor(building) && floor && !looksLikeFloor(floor)) {
+        copy['館別'] = floor;
+        copy['樓層'] = building;
+      }
+      return copy;
+    });
+  }
 
   async function login() {
     const username = $('username').value.trim();
@@ -92,7 +110,7 @@
     try {
       // 後端只負責抓今天全部訂單，篩選由手機端即時完成，切換更快。
       const r = await apiPost('staffOrders', {token, filters:{today:true}});
-      allRows = r.rows || [];
+      allRows = normalizeOrderRows(r.rows || []);
       renderMallChips(); render();
       $('lastUpdated').textContent = '更新：' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
     } catch (e) {
