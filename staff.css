@@ -9,3 +9,10 @@
 .delivery-date-tools input{min-height:42px;padding:8px 10px;border:1px solid #ccd9dd;border-radius:10px;font:inherit}
 .delivery-date-tools button{min-height:42px}
 @media(max-width:640px){.delivery-date-tools{display:grid;grid-template-columns:1fr 1fr}.delivery-date-tools label{grid-column:1/-1}.delivery-date-tools input{width:100%}}
+/* 修正 hidden 元素仍被 display:grid 顯示 */
+[hidden] {
+  display: none !important;
+}
+.blocking[hidden] {
+  display: none !important;
+}
