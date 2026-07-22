@@ -7,12 +7,23 @@
   let selectedMall = '';
   let selectedPeriod = '';
   let inventoryRows = [];
+  let selectedDeliveryDate = '';
   const pendingRequests = new Map();
 
   const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const boolTrue = v => String(v).toUpperCase() === 'TRUE' || v === true;
   const money = v => '$' + Number(v || 0).toLocaleString('zh-TW');
+
+  function localDateValue(date){
+    const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  function shiftSelectedDate(days){
+    const base=new Date((selectedDeliveryDate||localDateValue(new Date()))+'T00:00:00');
+    base.setDate(base.getDate()+days);
+    selectedDeliveryDate=localDateValue(base);$('staffDeliveryDate').value=selectedDeliveryDate;loadOrders();
+  }
 
   function showToast(text, type = '') {
     const t = $('toast'); t.textContent = text; t.className = 'toast' + (type ? ' ' + type : ''); t.hidden = false;
@@ -149,7 +160,7 @@
     $('loading').hidden = false; $('refreshBtn').disabled = true;
     try {
       // 後端只負責抓今天全部訂單，篩選由手機端即時完成，切換更快。
-      const r = await apiPost('staffOrders', {token, filters:{today:true}});
+      const r = await apiPost('staffOrders', {token, filters:{deliveryDate:selectedDeliveryDate||localDateValue(new Date())}});
       allRows = normalizeOrderRows(r.rows || []);
       renderMallChips(); render();
       $('lastUpdated').textContent = '更新：' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
@@ -203,6 +214,7 @@
 
   function orderCard(o) {
     const done = boolTrue(o['POS已Key']);
+    const deliveryDate=esc(o['送餐日期']||'未設定');
     const items = (o.items || []).map(i => `<div class="item"><div><div class="item-name">${esc(i['品項'])}</div>${i['飯量/客製']?`<div class="custom">${esc(i['飯量/客製'])}</div>`:''}</div><div class="qty">×${esc(i['數量'])}</div></div>`).join('');
     return `<article class="order-card ${done?'done':''}">
       <div class="order-top"><div><div class="counter">${esc(o['櫃位/品牌'])}</div><div class="meta">${esc(o['餐期'])}｜${esc(o['訂單編號'])}</div></div><div class="amount">${money(o['總金額'])}<div class="payment">${esc(o['付款方式'])}</div></div></div>
@@ -245,6 +257,13 @@
   document.querySelector('.stats').addEventListener('click', e => { const b=e.target.closest('[data-mode-shortcut]'); if(!b)return; $('modeFilter').value=b.dataset.modeShortcut; render(); });
   $('orderList').addEventListener('change', e => { if(e.target.matches('[data-status]')) update(e.target.dataset.status,e.target.value,null); });
   $('orderList').addEventListener('click', e => { const b=e.target.closest('[data-key]'); if(b) update(b.dataset.key,null,b.dataset.value==='true'); });
+
+  selectedDeliveryDate=localDateValue(new Date());$('staffDeliveryDate').value=selectedDeliveryDate;
+  $('staffDeliveryDate').addEventListener('change',e=>{selectedDeliveryDate=e.target.value;loadOrders();});
+  $('todayDateBtn').addEventListener('click',()=>{selectedDeliveryDate=localDateValue(new Date());$('staffDeliveryDate').value=selectedDeliveryDate;loadOrders();});
+  $('tomorrowDateBtn').addEventListener('click',()=>{const d=new Date();d.setDate(d.getDate()+1);selectedDeliveryDate=localDateValue(d);$('staffDeliveryDate').value=selectedDeliveryDate;loadOrders();});
+  $('prevDateBtn').addEventListener('click',()=>shiftSelectedDate(-1));
+  $('nextDateBtn').addEventListener('click',()=>shiftSelectedDate(1));
 
   if (token) { showStaff(); loadOrders(); }
   setInterval(() => { if(token && !document.hidden) loadOrders(); }, 30000);

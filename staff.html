@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
-  <link rel="stylesheet" href="staff.css?v=36">
+  <link rel="stylesheet" href="staff.css?v=361">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -53,6 +53,13 @@
           <button id="refreshBtn" class="refresh" aria-label="重新整理">↻</button>
         </div>
 
+        <div class="delivery-date-tools">
+          <button id="prevDateBtn" type="button" class="ghost">前一天</button>
+          <label><span>送餐日期</span><input id="staffDeliveryDate" type="date"></label>
+          <button id="todayDateBtn" type="button" class="ghost">今天</button>
+          <button id="tomorrowDateBtn" type="button" class="ghost">明天</button>
+          <button id="nextDateBtn" type="button" class="ghost">後一天</button>
+        </div>
         <div class="mode-row">
           <select id="modeFilter">
             <option value="pending">只看待 Key</option>
@@ -77,7 +84,7 @@
     <button id="loginResultBtn" class="primary big" type="button">確定</button>
   </dialog>
 
-  <script src="config.js?v=36"></script>
-  <script src="staff.js?v=36"></script>
+  <script src="config.js?v=361"></script>
+  <script src="staff.js?v=361"></script>
 </body>
 </html>

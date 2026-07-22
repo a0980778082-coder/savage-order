@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=361">
 </head>
 <body>
   <header class="hero">
@@ -32,6 +32,7 @@
       </div>
 
       <div class="form-grid">
+        <label class="field delivery-date-field"><span>送餐日期</span><input id="deliveryDate" type="date" required><small id="deliveryDateHint">請確認要送到櫃上的日期</small></label>
         <label class="field"><span>百貨商場</span><select id="mall" required><option value="">載入中…</option></select></label>
         <label class="field"><span>館別／棟別</span><select id="building" required disabled><option value="">請先選百貨</option></select></label>
         <label class="field"><span>樓層</span><select id="floor" required disabled><option value="">請先選館別</option></select></label>
@@ -117,7 +118,7 @@
 
       <div id="linePayBox" class="payment-box" hidden>
         <strong>請掃描 LINE Pay QR Code</strong>
-        <img id="linePayQr" src="./linepay-qr.png" alt="LINE Pay QR Code">
+        <img id="linePayQr" alt="LINE Pay QR Code" hidden>
         <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
       </div>
       <div id="transferBox" class="payment-box" hidden>
@@ -165,6 +166,7 @@
     <div class="success-icon">✓</div>
     <h2>訂單送出成功</h2>
     <p>訂單編號：<strong id="successOrderNo"></strong></p>
+    <p class="success-date">送餐日期：<strong id="successDeliveryDate"></strong></p>
     <p>總金額：<strong>$<span id="successTotal"></span></strong></p>
     <div id="rewardProgress" class="reward-progress" hidden>
       <strong id="rewardProgressTitle"></strong>
@@ -214,7 +216,7 @@
     <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
-  <script src="config.js?v=36"></script>
-  <script src="app.js?v=36"></script>
+  <script src="config.js?v=361"></script>
+  <script src="app.js?v=361"></script>
 </body>
 </html>

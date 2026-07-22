@@ -27,3 +27,8 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
 
 /* v35 */
 .menu-item.sold-out{opacity:.58;background:#f3f5f5}.menu-item.sold-out .qty-control button{cursor:not-allowed;background:#d9e0e2;color:#88989b}.sold-out-badge{display:inline-block;margin-left:7px;padding:3px 8px;border-radius:999px;background:#b6453c;color:#fff;font-size:12px;font-weight:800}.edit-banner{position:sticky;top:8px;z-index:30;margin:12px 0;padding:14px 16px;border-radius:16px;background:#fff0c9;border:2px solid #e0a92f;font-weight:800;box-shadow:0 6px 20px #0002}
+
+.delivery-date-field{grid-column:1/-1}
+.delivery-date-field input{font-size:1.05rem;font-weight:700}
+.delivery-date-field small{display:block;margin-top:.4rem;color:#b45309;font-weight:700}
+.success-date{padding:.65rem .8rem;border-radius:12px;background:#fff7ed;color:#9a3412}
