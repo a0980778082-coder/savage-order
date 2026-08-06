@@ -271,7 +271,36 @@
     }
   }
 
-  function renderPaymentInfo(){const s=state.settings;$('bankName').textContent=s['銀行名稱']||'—';$('bankCode').textContent=s['銀行代碼']||'—';$('bankAccount').textContent=s['轉帳帳號']||'—';$('bankHolder').textContent=s['轉帳戶名']||'—';if(s.LINE_PAY_QR_URL){$('linePayQr').src=s.LINE_PAY_QR_URL;$('linePayQr').hidden=false;$('linePayMissing').hidden=true}}
+  function renderPaymentInfo(){
+    const s=state.settings;
+    $('bankName').textContent=s['銀行名稱']||'—';
+    $('bankCode').textContent=s['銀行代碼']||'—';
+    $('bankAccount').textContent=s['轉帳帳號']||'—';
+    $('bankHolder').textContent=s['轉帳戶名']||'—';
+
+    const qr=$('linePayQr');
+    const missing=$('linePayMissing');
+    const localQr='./linepay-qr.png?v=373';
+    const configured=String(s.LINE_PAY_QR_URL||'').trim();
+
+    qr.hidden=false;
+    missing.hidden=true;
+    qr.onerror=()=>{
+      if(!qr.src.includes('linepay-qr.png')){
+        qr.src=localQr;
+        return;
+      }
+      qr.hidden=true;
+      missing.hidden=false;
+    };
+    qr.onload=()=>{
+      qr.hidden=false;
+      missing.hidden=true;
+    };
+
+    // 有設定網址時先嘗試；失敗就自動退回專案內的 QR 圖片。
+    qr.src=configured||localQr;
+  }
   function renderPaymentChoice(){
     const v=document.querySelector('input[name="paymentMethod"]:checked').value;
     const isLinePay=v==='LINE Pay';
