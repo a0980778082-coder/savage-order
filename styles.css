@@ -32,3 +32,58 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
 .delivery-date-field input{font-size:1.05rem;font-weight:700}
 .delivery-date-field small{display:block;margin-top:.4rem;color:#b45309;font-weight:700}
 .success-date{padding:.65rem .8rem;border-radius:12px;background:#fff7ed;color:#9a3412}
+
+
+/* v37.1 LINE Pay 後三碼核對 */
+.linepay-box{display:grid;gap:14px}
+.linepay-warning{background:#fff2dc;border:2px solid #efb24b;border-radius:18px;padding:15px 16px;color:#5f4218;line-height:1.65}
+.linepay-warning b{display:block;font-size:18px;margin-bottom:5px}
+.linepay-warning ol{margin:6px 0 6px 22px;padding:0}
+.linepay-warning p{margin:6px 0 0}
+.linepay-warning strong{font-size:20px;color:#b25a00}
+.linepay-last3-field{margin-top:2px}
+.linepay-last3-field span{display:flex;align-items:center;gap:8px}
+.linepay-last3-field em{font-style:normal;background:#b83c31;color:#fff;border-radius:999px;padding:3px 8px;font-size:12px}
+.linepay-last3-field input{font-size:24px;font-weight:900;letter-spacing:.28em;text-align:center}
+.linepay-confirm-check{display:flex;align-items:flex-start;gap:10px;background:#edf6f7;border-radius:14px;padding:13px 14px;font-weight:800;line-height:1.5}
+.linepay-confirm-check input{width:22px;height:22px;flex:0 0 auto;margin-top:1px}
+.success-linepay-notice{background:#fff2dc;border:2px solid #efb24b;border-radius:16px;padding:13px 14px;margin:12px 0;color:#5f4218}
+.success-linepay-notice p{margin:5px 0 0}
+.success-linepay-notice b{font-size:22px;color:#b25a00}
+
+
+/* v37.2 營業狀態與公告 */
+.site-marquee{
+  position:sticky;top:0;z-index:80;overflow:hidden;
+  background:#b94b3e;color:#fff;border-bottom:1px solid rgba(255,255,255,.28);
+  min-height:42px;display:flex;align-items:center
+}
+.site-marquee[hidden]{display:none!important}
+.marquee-track{width:100%;overflow:hidden;white-space:nowrap}
+.marquee-track span{
+  display:inline-block;padding-left:100%;font-weight:900;font-size:16px;
+  animation:savage-marquee 16s linear infinite
+}
+@keyframes savage-marquee{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.business-status-banner{
+  margin:0 0 16px;padding:16px 18px;border-radius:18px;
+  background:#fff1d8;border:2px solid #efb34d;color:#674717;
+  box-shadow:0 10px 24px rgba(80,58,20,.08)
+}
+.business-status-banner[hidden]{display:none!important}
+.business-status-banner.closed{background:#ffebe8;border-color:#d66a5e;color:#762d25}
+.business-status-banner strong{display:block;font-size:21px;margin-bottom:5px}
+.business-status-banner p{margin:0;line-height:1.65;font-weight:700}
+.announcement-dialog{
+  width:min(92vw,480px);border:0;border-radius:24px;padding:25px;
+  color:#15363d;box-shadow:0 24px 70px rgba(11,39,44,.28)
+}
+.announcement-dialog::backdrop{background:rgba(14,37,42,.58);backdrop-filter:blur(3px)}
+.announcement-icon{font-size:42px;text-align:center}
+.announcement-dialog h2{text-align:center;margin:7px 0 10px;font-size:27px}
+.announcement-dialog p{white-space:pre-wrap;line-height:1.75;font-size:17px;margin:0 0 18px}
+.primary-button.ordering-closed{background:#8b9698!important;cursor:not-allowed}
+@media(max-width:640px){
+  .marquee-track span{font-size:15px}
+  .business-status-banner{margin-left:0;margin-right:0}
+}

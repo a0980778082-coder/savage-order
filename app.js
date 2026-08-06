@@ -4,7 +4,7 @@
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
   const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '' };
   const $ = (id) => document.getElementById(id);
-  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText') };
+  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), linePayLast3:$('linePayLast3'), linePayAcknowledged:$('linePayAcknowledged'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -25,7 +25,7 @@
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
       state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};
-      setupDeliveryDate();renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();
+      setupDeliveryDate();renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();renderBusinessNotice();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
     }catch(err){showFatal(err.message||String(err));}
   }
@@ -81,9 +81,10 @@
   }
 
   function bindEvents(){
-    els.deliveryDate.addEventListener('change',updateDeliveryDateHint);
+    els.deliveryDate.addEventListener('change',()=>{updateDeliveryDateHint();applyOrderingAvailability();});
     els.mall.addEventListener('change',onMallChange);els.building.addEventListener('change',onBuildingChange);
     document.querySelectorAll('input[name="paymentMethod"]').forEach(x=>x.addEventListener('change',renderPaymentChoice));
+    document.querySelectorAll('input[name="mealPeriod"]').forEach(x=>x.addEventListener('change',applyOrderingAvailability));
     document.querySelectorAll('input[name="invoiceType"]').forEach(x=>x.addEventListener('change',renderInvoiceChoice));
     els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());$('editOrderBtn').addEventListener('click',startEditOrder);$('orderFailBtn').addEventListener('click',()=>$('orderResultDialog').close());
     $('spinBtn').addEventListener('click',openWheel);
@@ -91,6 +92,8 @@
     $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
     $('couponCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/\s+/g,'')});
     $('clearDeliveryMemory').addEventListener('click',clearDeliveryMemory);
+    $('closeAnnouncementBtn').addEventListener('click',()=>els.announcementDialog.close());
+    $('ackAnnouncementBtn').addEventListener('click',()=>els.announcementDialog.close());
     window.addEventListener('message',handleSubmitResponse);
   }
 
@@ -185,23 +188,119 @@
   function onCustomChange(e){const entry=state.cart.get(e.target.dataset.name);if(!entry)return;entry[e.target.dataset.custom]=e.target.value;state.cart.set(e.target.dataset.name,entry)}
   function updateSummary(){
     const entries=[...state.cart.values()].filter(x=>x.qty>0);const qty=entries.reduce((s,x)=>s+x.qty,0);const total=entries.reduce((s,x)=>s+Number(x.item['價格'])*x.qty,0);
-    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.disabled=qty===0||state.submitting;
+    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.dataset.cartEmpty=String(qty===0);applyOrderingAvailability();
+  }
+
+
+  function settingTrue(v){return v===true||String(v||'').trim().toUpperCase()==='TRUE'}
+  function dateInRange(value,start,end){
+    if(!value)return false;
+    if(start&&value<start)return false;
+    if(end&&value>end)return false;
+    return true;
+  }
+  function effectiveBusinessState(){
+    const st=state.settings||{};
+    const date=els.deliveryDate.value||localDateValue(new Date());
+    const start=String(st['公告開始日期']||'').slice(0,10);
+    const end=String(st['公告結束日期']||'').slice(0,10);
+    const active=dateInRange(date,start,end);
+    return {
+      active,
+      status:active?String(st['營業狀態']||'OPEN'):'OPEN',
+      noticeEnabled:active&&settingTrue(st['公告啟用']),
+      popupEnabled:active&&settingTrue(st['公告彈窗']),
+      marqueeEnabled:active&&settingTrue(st['公告跑馬燈']),
+      title:String(st['公告標題']||'系統公告'),
+      message:String(st['公告內容']||'')
+    };
+  }
+  function orderingBlockReason(){
+    const b=effectiveBusinessState();
+    if(!b.active)return '';
+    const meal=(document.querySelector('input[name="mealPeriod"]:checked')||{}).value||'午餐';
+    if(b.status==='CLOSED')return '目前店休，暫停接受訂單';
+    if(b.status==='LUNCH_CLOSED'&&meal==='午餐')return '本日午餐暫停接單';
+    if(b.status==='DINNER_CLOSED'&&meal==='晚餐')return '本日晚餐暫停接單';
+    return '';
+  }
+  function statusDefaultCopy(status){
+    return {
+      CLOSED:['今日店休','今日暫停供應餐點，造成不便敬請見諒。'],
+      LUNCH_CLOSED:['今日午餐暫停接單','今日午餐時段暫停供應，晚餐仍可正常預訂。'],
+      DINNER_CLOSED:['今日晚餐暫停接單','今日晚餐時段暫停供應，午餐仍可正常預訂。'],
+      ANNOUNCEMENT:['最新公告','請留意本店最新公告。'],
+      OPEN:['正常營業','目前正常接受訂單。']
+    }[status]||['系統公告',''];
+  }
+  function renderBusinessNotice(){
+    const b=effectiveBusinessState();
+    const defaults=statusDefaultCopy(b.status);
+    const title=b.title||defaults[0],message=b.message||defaults[1];
+    const shouldShow=b.noticeEnabled||b.status!=='OPEN';
+    els.siteMarquee.hidden=!(shouldShow&&b.marqueeEnabled);
+    els.siteMarqueeText.textContent=`📣 ${title}｜${message}`;
+    els.businessStatusBanner.hidden=!shouldShow;
+    els.businessStatusBanner.classList.toggle('closed',['CLOSED','LUNCH_CLOSED','DINNER_CLOSED'].includes(b.status));
+    els.businessStatusTitle.textContent=title;
+    els.businessStatusMessage.textContent=message;
+    if(shouldShow&&b.popupEnabled){
+      $('announcementDialogTitle').textContent=title;
+      $('announcementDialogMessage').textContent=message;
+      const key='savage_notice_seen_'+[title,message,state.settings['公告開始日期'],state.settings['公告結束日期']].join('|');
+      if(!sessionStorage.getItem(key)){
+        setTimeout(()=>{if(typeof els.announcementDialog.showModal==='function')els.announcementDialog.showModal();},250);
+        sessionStorage.setItem(key,'1');
+      }
+    }
+    applyOrderingAvailability();
+  }
+  function applyOrderingAvailability(){
+    const reason=orderingBlockReason();
+    const cartEmpty=els.submitBtn.dataset.cartEmpty!=='false';
+    els.submitBtn.disabled=!!reason||cartEmpty||state.submitting;
+    els.submitBtn.classList.toggle('ordering-closed',!!reason);
+    if(reason){
+      els.submitBtn.textContent=reason.includes('午餐')?'午餐暫停接單':reason.includes('晚餐')?'晚餐暫停接單':'目前店休';
+      els.businessStatusBanner.hidden=false;
+      els.businessStatusBanner.classList.add('closed');
+      if(!els.businessStatusTitle.textContent)els.businessStatusTitle.textContent='暫停接單';
+      if(!els.businessStatusMessage.textContent)els.businessStatusMessage.textContent=reason;
+    }else if(!state.submitting){
+      els.submitBtn.textContent=state.editingOrderNo?'更新訂單':'送出訂單';
+    }
   }
 
   function renderPaymentInfo(){const s=state.settings;$('bankName').textContent=s['銀行名稱']||'—';$('bankCode').textContent=s['銀行代碼']||'—';$('bankAccount').textContent=s['轉帳帳號']||'—';$('bankHolder').textContent=s['轉帳戶名']||'—';if(s.LINE_PAY_QR_URL){$('linePayQr').src=s.LINE_PAY_QR_URL;$('linePayQr').hidden=false;$('linePayMissing').hidden=true}}
-  function renderPaymentChoice(){const v=document.querySelector('input[name="paymentMethod"]:checked').value;els.linePayBox.hidden=v!=='LINE Pay';els.transferBox.hidden=v!=='轉帳'}
+  function renderPaymentChoice(){
+    const v=document.querySelector('input[name="paymentMethod"]:checked').value;
+    const isLinePay=v==='LINE Pay';
+    els.linePayBox.hidden=!isLinePay;
+    els.transferBox.hidden=v!=='轉帳';
+    if(!isLinePay){
+      els.linePayLast3.value='';
+      els.linePayAcknowledged.checked=false;
+    }
+  }
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
   function validate(){
+    const blocked=orderingBlockReason();if(blocked){toast(blocked);return false}
     const required=[['deliveryDate','請選擇送餐日期'],['mall','請選擇百貨'],['building','請選擇館別'],['floor','請選擇樓層'],['counterName','請填寫櫃位／品牌'],['contactName','請填寫聯絡人'],['contactPhone','請填寫聯絡電話']];
     for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
     if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
+    const payment=document.querySelector('input[name="paymentMethod"]:checked').value;
+    if(payment==='LINE Pay'){
+      const last3=els.linePayLast3.value.trim();
+      if(!/^\d{3}$/.test(last3)){toast('請輸入 LINE Pay 付款手機後三碼');els.linePayLast3.focus();return false}
+      if(!els.linePayAcknowledged.checked){toast('請勾選「付款後會到社群傳送後三碼」');els.linePayAcknowledged.focus();return false}
+    }
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
     const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
     return true;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
+  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:[...state.cart.values()].filter(x=>x.qty>0).map(x=>({category:x.item['分類'],name:x.item['品項'],price:Number(x.item['價格']),qty:x.qty,riceOption:String(x.item['飯量可選']).toLowerCase()!=='false'?`${x.rice}／${x.amount}`:''}))}}
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -242,6 +341,10 @@
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
       $('successOrderNo').textContent=d.orderNo;$('successDeliveryDate').textContent=displayDeliveryDate(els.deliveryDate.value);$('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
+      const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
+      const showLinePayNotice=selectedPayment==='LINE Pay';
+      $('successLinePayNotice').hidden=!showLinePayNotice;
+      if(showLinePayNotice)$('successLinePayLast3').textContent=els.linePayLast3.value.trim();
       renderRewardProgress(d.rewardStatus);
       $('successDialog').showModal();
     }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }

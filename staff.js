@@ -8,12 +8,62 @@
   let selectedPeriod = '';
   let inventoryRows = [];
   let selectedDeliveryDate = '';
+  let focusMode = localStorage.getItem('savage_focus_mode') !== 'false';
+  let focusIndex = 0;
+  let initialOrdersLoaded = false;
+  let knownOrderNos = new Set();
+  let swRegistration = null;
+  let businessSettings = {};
   const pendingRequests = new Map();
 
   const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const boolTrue = v => String(v).toUpperCase() === 'TRUE' || v === true;
   const money = v => '$' + Number(v || 0).toLocaleString('zh-TW');
+
+
+  async function registerServiceWorker(){
+    if(!('serviceWorker' in navigator)) return null;
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=372');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+  }
+  function updateNotifyButton(){
+    const b=$('notifyBtn'); if(!b)return;
+    if(!('Notification' in window)){b.textContent='不支援通知';b.disabled=true;return;}
+    b.classList.toggle('enabled',Notification.permission==='granted');
+    b.classList.toggle('denied',Notification.permission==='denied');
+    b.textContent=Notification.permission==='granted'?'通知已開啟':(Notification.permission==='denied'?'通知被封鎖':'開啟通知');
+  }
+  async function enableNotifications(){
+    if(!('Notification' in window)){showToast('這台裝置不支援瀏覽器通知','error');return;}
+    const result=await Notification.requestPermission(); updateNotifyButton();
+    if(result==='granted'){
+      await registerServiceWorker();
+      await showSystemNotification('小野人通知已開啟','新訂單會在手機上提醒你。','notification-test');
+      showToast('手機通知已開啟','success');
+    }else showToast('請到瀏覽器設定允許通知','error');
+  }
+  async function showSystemNotification(title,body,tag){
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    const reg=swRegistration||await registerServiceWorker();
+    const options={body,tag:tag||'savage-order',renotify:true,vibrate:[250,120,250],icon:'./icon-192.svg',badge:'./icon-192.svg',data:{url:location.href}};
+    if(reg&&reg.showNotification) await reg.showNotification(title,options); else new Notification(title,options);
+  }
+  function announceNewOrders(rows){
+    const pending=rows.filter(o=>!boolTrue(o['POS已Key']));
+    const current=new Set(pending.map(o=>String(o['訂單編號'])));
+    if(initialOrdersLoaded){
+      const fresh=pending.filter(o=>!knownOrderNos.has(String(o['訂單編號'])));
+      fresh.forEach(o=>showSystemNotification('🔔 新訂單｜'+(o['櫃位/品牌']||'百貨櫃位'),`${o['送餐日期']||''} ${o['餐期']||''}｜${(o.items||[]).map(i=>i['品項']+'×'+i['數量']).join('、')}`,'order-'+o['訂單編號']));
+      if(fresh.length){showToast(`收到 ${fresh.length} 筆新訂單`,'success');if(navigator.vibrate)navigator.vibrate([250,120,250]);}
+    }
+    knownOrderNos=current; initialOrdersLoaded=true;
+  }
+  function applyFocusMode(){
+    document.body.classList.toggle('focus-mode',focusMode);
+    $('focusModeBtn').textContent=focusMode?'一般模式':'專注模式';
+    localStorage.setItem('savage_focus_mode',String(focusMode));
+    focusIndex=0;render();
+  }
 
   function localDateValue(date){
     const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
@@ -162,6 +212,7 @@
       // 後端只負責抓今天全部訂單，篩選由手機端即時完成，切換更快。
       const r = await apiPost('staffOrders', {token, filters:{deliveryDate:selectedDeliveryDate||localDateValue(new Date())}});
       allRows = normalizeOrderRows(r.rows || []);
+      announceNewOrders(allRows);
       renderMallChips(); render();
       $('lastUpdated').textContent = '更新：' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
     } catch (e) {
@@ -195,18 +246,24 @@
   }
 
   function render() {
-    const rows = filteredRows();
+    let rows = filteredRows();
     $('pendingCount').textContent = allRows.filter(o => !boolTrue(o['POS已Key'])).length;
     $('keyedCount').textContent = allRows.filter(o => boolTrue(o['POS已Key'])).length;
     $('orderCount').textContent = rows.length;
     $('totalAmount').textContent = money(rows.reduce((s,o)=>s+Number(o['總金額']||0),0));
     document.querySelectorAll('[data-mode-shortcut]').forEach(b => b.classList.toggle('active', b.dataset.modeShortcut === $('modeFilter').value));
-    if (!rows.length) { $('orderList').innerHTML = '<div class="empty">目前沒有符合條件的訂單</div>'; return; }
+    if (!rows.length) { $('focusNav').hidden=true;$('orderList').innerHTML = '<div class="empty">目前沒有符合條件的訂單</div>'; return; }
+    if(focusMode){
+      focusIndex=Math.max(0,Math.min(focusIndex,rows.length-1));
+      const o=rows[focusIndex], key=[o['百貨'],o['館別'],o['樓層']].filter(Boolean).join('｜');
+      $('focusNav').hidden=rows.length<2;$('focusPosition').textContent=`${focusIndex+1} / ${rows.length}`;
+      $('prevOrderBtn').disabled=focusIndex<=0;$('nextOrderBtn').disabled=focusIndex>=rows.length-1;
+      $('orderList').innerHTML=`<section class="floor-group"><div class="floor-title">${esc(key)}｜專注 Key 單</div>${orderCard(o)}</section>`;
+      return;
+    }
+    $('focusNav').hidden=true;
     const groups = new Map();
-    rows.forEach(o => {
-      const key = [o['百貨'],o['館別'],o['樓層']].filter(Boolean).join('｜');
-      if (!groups.has(key)) groups.set(key, []); groups.get(key).push(o);
-    });
+    rows.forEach(o => { const key = [o['百貨'],o['館別'],o['樓層']].filter(Boolean).join('｜'); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(o); });
     $('orderList').innerHTML = [...groups.entries()].map(([key,list]) =>
       `<section class="floor-group"><div class="floor-title">${esc(key)}｜${list.length} 筆</div>${list.map(orderCard).join('')}</section>`
     ).join('');
@@ -215,13 +272,16 @@
   function orderCard(o) {
     const done = boolTrue(o['POS已Key']);
     const deliveryDate=esc(o['送餐日期']||'未設定');
-    const items = (o.items || []).map(i => `<div class="item"><div><div class="item-name">${esc(i['品項'])}</div>${i['飯量/客製']?`<div class="custom">${esc(i['飯量/客製'])}</div>`:''}</div><div class="qty">×${esc(i['數量'])}</div></div>`).join('');
-    return `<article class="order-card ${done?'done':''}">
-      <div class="order-top"><div><div class="counter">${esc(o['櫃位/品牌'])}</div><div class="meta">${esc(o['餐期'])}｜${esc(o['訂單編號'])}</div></div><div class="amount">${money(o['總金額'])}<div class="payment">${esc(o['付款方式'])}</div></div></div>
+    const location=[o['百貨'],o['館別'],o['樓層']].filter(Boolean).join('｜');
+    const items = (o.items || []).map(i => `<div class="item"><div><div class="item-name">${esc(i['品項'])}</div>${i['飯量/客製']?`<div class="custom">⚠ ${esc(i['飯量/客製'])}</div>`:''}</div><div class="qty">×${esc(i['數量'])}</div></div>`).join('');
+    return `<article class="order-card ${done?'done':''}" data-order-card="${esc(o['訂單編號'])}">
+      <div><span class="delivery-badge">📅 ${deliveryDate} ${esc(o['餐期'])}</span><span class="location-badge">🏬 ${esc(location)}</span></div>
+      <div class="order-top"><div><div class="counter">${esc(o['櫃位/品牌'])}</div><div class="meta">訂單：${esc(o['訂單編號'])}</div></div><div class="amount">${money(o['總金額'])}<div class="payment">${esc(o['付款方式'])}${o['付款狀態']?`｜${esc(o['付款狀態'])}`:''}</div></div></div>
       <div class="contact"><b>${esc(o['聯絡人姓名'])}</b>｜<a href="tel:${esc(o['聯絡電話'])}">${esc(o['聯絡電話'])}</a></div>
       <div class="invoice">發票：${esc(o['發票方式'])}${o['發票載具']?`<br>載具：<b>${esc(o['發票載具'])}</b>`:''}</div>
+      ${o['付款方式']==='LINE Pay'?`<div class="linepay-check"><div><span>LINE Pay 後三碼</span><strong>${esc(o['LINE Pay後三碼']||'未填')}</strong></div><div class="payment-state ${o['付款狀態']==='已付款'?'paid':''}">${esc(o['付款狀態']||'待核對')}</div>${o['付款狀態']==='已付款'?`<button class="payment-btn undo" data-payment="${esc(o['訂單編號'])}" data-payment-status="待核對">改回待核對</button>`:`<button class="payment-btn" data-payment="${esc(o['訂單編號'])}" data-payment-status="已付款">✓ 確認已付款</button>`}</div>`:''}
       <div class="items">${items || '<div class="item">尚無餐點明細</div>'}</div>
-      <div class="note">備註：${esc(o['訂單備註']||'無')}</div>
+      <div class="note">⚠ 備註：${esc(o['訂單備註']||'無')}</div>
       <div class="actions"><select data-status="${esc(o['訂單編號'])}">${['新訂單','製作中','已完成','已送達'].map(s=>`<option ${s===o['訂單狀態']?'selected':''}>${s}</option>`).join('')}</select><button class="key-btn ${done?'cancel':''}" data-key="${esc(o['訂單編號'])}" data-value="${done?'false':'true'}">${done?'取消已 Key':'✓ 完成 Key 單'}</button></div>
     </article>`;
   }
@@ -233,6 +293,80 @@
     finally { setBlocking(false); }
   }
 
+  async function updatePayment(no, paymentStatus) {
+    setBlocking(true);
+    try {
+      await apiPost('updatePaymentStatus',{token,orderNo:no,paymentStatus});
+      showToast(paymentStatus==='已付款'?'已確認 LINE Pay 付款':'已改回待核對','success');
+      await loadOrders();
+    } catch(e) { showToast(e.message,'error'); }
+    finally { setBlocking(false); }
+  }
+
+
+
+  function checkedValue(id){return $(id).checked?'TRUE':'FALSE'}
+  function businessDefaults(status){
+    return {
+      OPEN:['正常營業','目前正常接受訂單。'],
+      LUNCH_CLOSED:['今日午餐暫停接單','今日午餐時段暫停供應，晚餐仍可正常預訂。'],
+      DINNER_CLOSED:['今日晚餐暫停接單','今日晚餐時段暫停供應，午餐仍可正常預訂。'],
+      CLOSED:['今日店休','今日暫停供應餐點，造成不便敬請見諒。'],
+      ANNOUNCEMENT:['最新公告','請留意本店最新公告。']
+    }[status]||['系統公告',''];
+  }
+  function renderBusinessPreview(){
+    const status=$('businessStatus').value;
+    const defaults=businessDefaults(status);
+    const title=$('noticeTitle').value.trim()||defaults[0];
+    const msg=$('noticeMessage').value.trim()||defaults[1];
+    $('businessPreview').classList.toggle('closed',['CLOSED','LUNCH_CLOSED','DINNER_CLOSED'].includes(status));
+    $('businessPreview').innerHTML=`<strong>${esc(title)}</strong><span>${esc(msg)}</span>`;
+  }
+  function fillBusinessForm(data){
+    businessSettings=data||{};
+    $('businessStatus').value=businessSettings['營業狀態']||'OPEN';
+    $('noticeStartDate').value=String(businessSettings['公告開始日期']||'').slice(0,10);
+    $('noticeEndDate').value=String(businessSettings['公告結束日期']||'').slice(0,10);
+    $('noticeTitle').value=businessSettings['公告標題']||'';
+    $('noticeMessage').value=businessSettings['公告內容']||'';
+    $('noticeEnabled').checked=String(businessSettings['公告啟用']).toUpperCase()==='TRUE';
+    $('noticePopup').checked=String(businessSettings['公告彈窗']).toUpperCase()==='TRUE';
+    $('noticeMarquee').checked=String(businessSettings['公告跑馬燈']).toUpperCase()==='TRUE';
+    renderBusinessPreview();
+  }
+  async function openBusiness(){
+    setBlocking(true);
+    try{
+      const r=await apiPost('businessSettingsGet',{token});
+      fillBusinessForm(r.settings||{});
+      $('businessDialog').showModal();
+    }catch(e){showToast(e.message,'error')}
+    finally{setBlocking(false)}
+  }
+  async function saveBusiness(){
+    const start=$('noticeStartDate').value,end=$('noticeEndDate').value;
+    if(start&&end&&end<start){showToast('公告結束日期不能早於開始日期','error');return}
+    const status=$('businessStatus').value,defaults=businessDefaults(status);
+    const settings={
+      '營業狀態':status,
+      '公告開始日期':start,
+      '公告結束日期':end,
+      '公告標題':$('noticeTitle').value.trim()||defaults[0],
+      '公告內容':$('noticeMessage').value.trim()||defaults[1],
+      '公告啟用':checkedValue('noticeEnabled'),
+      '公告彈窗':checkedValue('noticePopup'),
+      '公告跑馬燈':checkedValue('noticeMarquee')
+    };
+    setBlocking(true);
+    try{
+      const r=await apiPost('businessSettingsUpdate',{token,settings});
+      businessSettings=r.settings||settings;
+      fillBusinessForm(businessSettings);
+      showToast('營業狀態與公告已更新','success');
+    }catch(e){showToast(e.message,'error')}
+    finally{setBlocking(false)}
+  }
 
   async function openInventory(){
     $('inventoryDialog').showModal();$('inventoryList').innerHTML='<div class="loading">載入商品中…</div>';
@@ -249,6 +383,14 @@
   $('password').addEventListener('keydown', e => { if(e.key === 'Enter') login(); });
   $('logoutBtn').addEventListener('click', logout);
   $('refreshBtn').addEventListener('click', loadOrders);
+  $('notifyBtn').addEventListener('click',enableNotifications);
+  $('focusModeBtn').addEventListener('click',()=>{focusMode=!focusMode;applyFocusMode();});
+  $('prevOrderBtn').addEventListener('click',()=>{if(focusIndex>0){focusIndex--;render();window.scrollTo({top:0,behavior:'smooth'});}});
+  $('nextOrderBtn').addEventListener('click',()=>{const rows=filteredRows();if(focusIndex<rows.length-1){focusIndex++;render();window.scrollTo({top:0,behavior:'smooth'});}});
+  $('businessBtn').addEventListener('click',openBusiness);
+  $('closeBusinessBtn').addEventListener('click',()=>$('businessDialog').close());
+  $('saveBusinessBtn').addEventListener('click',saveBusiness);
+  ['businessStatus','noticeStartDate','noticeEndDate','noticeTitle','noticeMessage','noticeEnabled','noticePopup','noticeMarquee'].forEach(id=>$(id).addEventListener(id.startsWith('notice')&&['noticeTitle','noticeMessage'].includes(id)?'input':'change',renderBusinessPreview));
   $('inventoryBtn').addEventListener('click',openInventory);$('closeInventoryBtn').addEventListener('click',()=>$('inventoryDialog').close());$('inventorySearch').addEventListener('input',renderInventory);$('restockAllBtn').addEventListener('click',async()=>{if(!confirm('確定要把所有限量品補回預設庫存？'))return;setBlocking(true);try{await apiPost('inventoryRestockAll',{token});const r=await apiPost('inventoryList',{token});inventoryRows=r.rows||[];renderInventory();showToast('已完成一鍵補貨','success')}catch(e){showToast(e.message,'error')}finally{setBlocking(false)}});$('inventoryList').addEventListener('click',e=>{const card=e.target.closest('[data-inventory]');if(!card)return;const name=card.dataset.inventory,item=inventoryRows.find(x=>x.name===name);if(!item)return;if(e.target.closest('[data-toggle-enabled]'))inventoryChange(name,{enabled:!item.enabled});else if(e.target.closest('[data-toggle-sold]'))inventoryChange(name,{soldOut:!item.soldOut});else if(e.target.closest('[data-stock-delta]'))inventoryChange(name,{stock:Math.max(0,item.stock+Number(e.target.closest('[data-stock-delta]').dataset.stockDelta))});else if(e.target.closest('[data-stock-set]'))inventoryChange(name,{stock:Number(e.target.closest('[data-stock-set]').dataset.stockSet)});});
   $('searchInput').addEventListener('input', render);
   $('modeFilter').addEventListener('change', render);
@@ -256,7 +398,17 @@
   document.querySelector('.period-tabs').addEventListener('click', e => { const b=e.target.closest('[data-period]'); if(!b)return; selectedPeriod=b.dataset.period; document.querySelectorAll('.period').forEach(x=>x.classList.toggle('active',x===b)); render(); });
   document.querySelector('.stats').addEventListener('click', e => { const b=e.target.closest('[data-mode-shortcut]'); if(!b)return; $('modeFilter').value=b.dataset.modeShortcut; render(); });
   $('orderList').addEventListener('change', e => { if(e.target.matches('[data-status]')) update(e.target.dataset.status,e.target.value,null); });
-  $('orderList').addEventListener('click', e => { const b=e.target.closest('[data-key]'); if(b) update(b.dataset.key,null,b.dataset.value==='true'); });
+  $('orderList').addEventListener('click', e => {
+    const pay=e.target.closest('[data-payment]');
+    if(pay){
+      const status=pay.dataset.paymentStatus;
+      if(status==='已付款'&&!confirm('已核對入帳，確定標示為「已付款」？'))return;
+      updatePayment(pay.dataset.payment,status);
+      return;
+    }
+    const b=e.target.closest('[data-key]');
+    if(b) update(b.dataset.key,null,b.dataset.value==='true');
+  });
 
   selectedDeliveryDate=localDateValue(new Date());$('staffDeliveryDate').value=selectedDeliveryDate;
   $('staffDeliveryDate').addEventListener('change',e=>{selectedDeliveryDate=e.target.value;loadOrders();});
@@ -265,6 +417,8 @@
   $('prevDateBtn').addEventListener('click',()=>shiftSelectedDate(-1));
   $('nextDateBtn').addEventListener('click',()=>shiftSelectedDate(1));
 
+  registerServiceWorker();updateNotifyButton();
+  if (focusMode) document.body.classList.add('focus-mode');
   if (token) { showStaff(); loadOrders(); }
-  setInterval(() => { if(token && !document.hidden) loadOrders(); }, 30000);
+  setInterval(() => { if(token) loadOrders(); }, 20000);
 })();

@@ -9,9 +9,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=361">
+  <link rel="stylesheet" href="styles.css?v=372">
 </head>
 <body>
+  <div id="siteMarquee" class="site-marquee" hidden>
+    <div class="marquee-track"><span id="siteMarqueeText"></span></div>
+  </div>
   <header class="hero">
     <div class="hero-inner">
       <div class="brand-mark">小野人</div>
@@ -24,6 +27,10 @@
   </header>
 
   <main class="page-shell">
+    <div id="businessStatusBanner" class="business-status-banner" hidden>
+      <strong id="businessStatusTitle"></strong>
+      <p id="businessStatusMessage"></p>
+    </div>
     <div id="editBanner" class="edit-banner" hidden>✏️ 正在修改訂單 <strong id="editOrderNo"></strong>；送出後會直接更新原訂單。</div>
     <section class="panel" aria-labelledby="delivery-title">
       <div class="section-heading">
@@ -116,10 +123,28 @@
         </div>
       </fieldset>
 
-      <div id="linePayBox" class="payment-box" hidden>
-        <strong>請掃描 LINE Pay QR Code</strong>
-        <img id="linePayQr" alt="LINE Pay QR Code" hidden>
+      <div id="linePayBox" class="payment-box linepay-box" hidden>
+        <strong>請掃描 LINE Pay QR Code 完成付款</strong>
+        <div class="linepay-warning">
+          <b>⚠️ LINE Pay 付款提醒</b>
+          <ol>
+            <li>請先掃描下方 QR Code 並完成付款。</li>
+            <li>付款完成後，請將「付款手機號碼後三碼」傳送至社群，通知管理員核對。</li>
+            <li>管理員核對前，訂單付款狀態會顯示為「待核對」。</li>
+          </ol>
+          <p>例如：付款手機號碼為 0980-778-082，請傳送 <strong>082</strong>。</p>
+        </div>
+        <img id="linePayQr" src="./linepay-qr.png" alt="LINE Pay QR Code">
         <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
+        <label id="linePayLast3Field" class="field linepay-last3-field">
+          <span>付款手機後三碼 <em>必填</em></span>
+          <input id="linePayLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}" placeholder="例如：082" autocomplete="off">
+          <small>請輸入實際用來 LINE Pay 付款的手機號碼後三碼，並將同樣三碼傳送至社群。</small>
+        </label>
+        <label class="linepay-confirm-check">
+          <input id="linePayAcknowledged" type="checkbox">
+          <span>我知道付款後仍需到社群傳送手機後三碼，通知管理員核對。</span>
+        </label>
       </div>
       <div id="transferBox" class="payment-box" hidden>
         <strong>轉帳資訊</strong>
@@ -161,6 +186,14 @@
     </div>
   </div>
 
+  <dialog id="announcementDialog" class="announcement-dialog">
+    <button id="closeAnnouncementBtn" class="dialog-close" type="button" aria-label="關閉">×</button>
+    <div class="announcement-icon">📣</div>
+    <h2 id="announcementDialogTitle">系統公告</h2>
+    <p id="announcementDialogMessage"></p>
+    <button id="ackAnnouncementBtn" class="primary-button" type="button">知道了</button>
+  </dialog>
+
   <div id="toast" class="toast" role="status" hidden></div>
   <dialog id="successDialog" class="success-dialog">
     <div class="success-icon">✓</div>
@@ -168,6 +201,10 @@
     <p>訂單編號：<strong id="successOrderNo"></strong></p>
     <p class="success-date">送餐日期：<strong id="successDeliveryDate"></strong></p>
     <p>總金額：<strong>$<span id="successTotal"></span></strong></p>
+    <div id="successLinePayNotice" class="success-linepay-notice" hidden>
+      <strong>LINE Pay 尚待管理員核對</strong>
+      <p>請立即到社群傳送付款手機後三碼：<b id="successLinePayLast3"></b></p>
+    </div>
     <div id="rewardProgress" class="reward-progress" hidden>
       <strong id="rewardProgressTitle"></strong>
       <p id="rewardProgressText"></p>
@@ -216,7 +253,7 @@
     <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
-  <script src="config.js?v=361"></script>
-  <script src="app.js?v=361"></script>
+  <script src="config.js?v=372"></script>
+  <script src="app.js?v=372"></script>
 </body>
 </html>

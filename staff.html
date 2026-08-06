@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#27616b">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
-  <link rel="stylesheet" href="staff.css?v=362">
+  <link rel="manifest" href="manifest.webmanifest?v=372">
+  <link rel="stylesheet" href="staff.css?v=372">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -29,7 +31,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <div class="header-actions"><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
+        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="businessBtn" class="ghost">營業公告</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -71,10 +73,43 @@
       </section>
 
       <div id="loading" class="loading" hidden><div class="spinner small"></div>讀取訂單中…</div>
+      <div id="focusNav" class="focus-nav" hidden><button id="prevOrderBtn" class="ghost">上一張</button><strong id="focusPosition">0 / 0</strong><button id="nextOrderBtn" class="ghost">下一張</button></div>
       <section id="orderList" class="order-list"></section>
     </section>
   </main>
   <dialog id="inventoryDialog" class="inventory-dialog"><div class="inventory-head"><div><h2>商品與庫存管理</h2><p>停售、今日售完與補貨會立即影響客人點餐頁</p></div><button id="closeInventoryBtn" class="ghost">關閉</button></div><div class="inventory-tools"><input id="inventorySearch" type="search" placeholder="搜尋商品"><button id="restockAllBtn" class="primary">一鍵補齊限量品</button></div><div id="inventoryList" class="inventory-list"></div></dialog>
+
+
+  <dialog id="businessDialog" class="business-dialog">
+    <div class="inventory-head">
+      <div><h2>營業狀態與前台公告</h2><p>設定後會立即影響客人點餐頁；店休或指定餐期暫停時將停止接單。</p></div>
+      <button id="closeBusinessBtn" class="ghost" type="button">關閉</button>
+    </div>
+    <div class="business-form">
+      <label><span>營業狀態</span>
+        <select id="businessStatus">
+          <option value="OPEN">🟢 正常營業</option>
+          <option value="LUNCH_CLOSED">🟡 午餐暫停接單</option>
+          <option value="DINNER_CLOSED">🟠 晚餐暫停接單</option>
+          <option value="CLOSED">🔴 店休／全天停止接單</option>
+          <option value="ANNOUNCEMENT">🔵 公告模式（仍可接單）</option>
+        </select>
+      </label>
+      <div class="business-dates">
+        <label><span>開始日期（空白＝立即）</span><input id="noticeStartDate" type="date"></label>
+        <label><span>結束日期（空白＝持續）</span><input id="noticeEndDate" type="date"></label>
+      </div>
+      <label><span>公告標題</span><input id="noticeTitle" type="text" maxlength="60" placeholder="例如：今日店休"></label>
+      <label><span>公告內容</span><textarea id="noticeMessage" rows="5" maxlength="300" placeholder="例如：今日店休，明日恢復正常營業。"></textarea></label>
+      <div class="business-switches">
+        <label><input id="noticeEnabled" type="checkbox"><span>啟用公告區塊</span></label>
+        <label><input id="noticePopup" type="checkbox"><span>客人進入時彈窗</span></label>
+        <label><input id="noticeMarquee" type="checkbox"><span>顯示上方跑馬燈</span></label>
+      </div>
+      <div class="business-preview" id="businessPreview"></div>
+      <button id="saveBusinessBtn" class="primary big" type="button">儲存並立即套用</button>
+    </div>
+  </dialog>
 
 
   <dialog id="loginResultDialog" class="result-dialog">
@@ -84,7 +119,7 @@
     <button id="loginResultBtn" class="primary big" type="button">確定</button>
   </dialog>
 
- <script src="config.js?v=362"></script>
-<script src="staff.js?v=362"></script>
+  <script src="config.js?v=372"></script>
+  <script src="staff.js?v=372"></script>
 </body>
 </html>
