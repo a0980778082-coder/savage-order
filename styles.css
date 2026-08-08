@@ -87,3 +87,24 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
   .marquee-track span{font-size:15px}
   .business-status-banner{margin-left:0;margin-right:0}
 }
+
+
+/* v37.4 同品項多份餐盒可分別設定飯量 */
+.portion-options{display:block!important;margin-top:12px;padding:13px;background:#f3f8f9;border:1px solid #d8e7e9;border-radius:16px}
+.portion-options[hidden]{display:none!important}
+.portion-options-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.portion-options-head strong{display:block;font-size:16px}
+.portion-options-head small{display:block;margin-top:2px;color:#6c8186;line-height:1.4}
+.apply-all-rice{border:1px solid #85bcc5;background:#fff;color:#27616b;border-radius:11px;padding:8px 10px;font-weight:850;white-space:nowrap}
+.portion-list{display:grid;gap:9px}
+.portion-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:end;background:#fff;border:1px solid #dce9eb;border-radius:13px;padding:10px}
+.portion-number{font-weight:950;color:#2b6973;padding:0 5px 10px 1px;white-space:nowrap}
+.portion-row label{display:grid;gap:4px}
+.portion-row label span{font-size:12px;font-weight:850;color:#657b80}
+.portion-row select{width:100%;min-height:42px;border:1px solid #ccdfe2;border-radius:10px;background:#fff;padding:8px;font:inherit;color:#17363d}
+@media(max-width:640px){
+  .portion-options-head{align-items:flex-start;flex-direction:column}
+  .apply-all-rice{width:100%;min-height:42px}
+  .portion-row{grid-template-columns:1fr 1fr}
+  .portion-number{grid-column:1/-1;padding-bottom:0}
+}
