@@ -1,10 +1,10 @@
 const CACHE='savage-pos-v374';
 const ASSETS=[
   './staff.html?v=374',
-  './staff.css?v=374',
-  './staff.js?v=374',
-  './config.js?v=374',
-  './manifest.webmanifest?v=374',
+  './staff.css?v=377',
+  './staff.js?v=377',
+  './config.js?v=377',
+  './manifest.webmanifest?v=377',
   './linepay-qr.png?v=374'
 ];
 

@@ -191,6 +191,7 @@
     els.menuRoot.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',onQtyClick));
     els.menuRoot.addEventListener('change',onUnitCustomChange);
     els.menuRoot.addEventListener('click',onUnitActionClick);
+    updateAddonAvailability();
   }
 
   function toggleCategory(btn, forceOpen){
@@ -248,12 +249,89 @@
       <label><span>飯量</span>${amountSelect(portion.amount,name,index)}</label>
     </div>`).join('')}</div>`;
   }
+  function isAddonItem(item){
+    const category=String((item&&item['分類'])||'');
+    return category==='餐盒加購優惠'||category.includes('加購');
+  }
+  function isEconomicBento(item){
+    const category=String((item&&item['分類'])||'');
+    return category.includes('外送百元')||category.includes('百元');
+  }
+  function isRegularBento(item){
+    const category=String((item&&item['分類'])||'');
+    return category.includes('餐盒')&&!isEconomicBento(item)&&!isAddonItem(item);
+  }
+  function cartQtyBy(test){
+    return [...state.cart.values()].reduce((sum,entry)=>sum+(entry.qty>0&&test(entry.item)?Number(entry.qty):0),0);
+  }
+  function addonRuleStatus(){
+    return {
+      regularQty:cartQtyBy(isRegularBento),
+      economicQty:cartQtyBy(isEconomicBento),
+      addonQty:cartQtyBy(isAddonItem)
+    };
+  }
+  function enforceAddonLimit(showToast=false){
+    const status=addonRuleStatus();
+    let excess=Math.max(0,status.addonQty-status.regularQty);
+    if(excess>0){
+      const addonEntries=[...state.cart.entries()].filter(([,entry])=>entry.qty>0&&isAddonItem(entry.item)).reverse();
+      addonEntries.forEach(([name,entry])=>{
+        if(excess<=0)return;
+        const cut=Math.min(excess,entry.qty);
+        entry.qty-=cut;
+        excess-=cut;
+        state.cart.set(name,entry);
+        const qtyEl=document.querySelector(`[data-qty="${cssEsc(name)}"]`);
+        if(qtyEl)qtyEl.textContent=entry.qty;
+      });
+      if(showToast)toast(status.regularQty===0?'百元外送餐盒不提供「餐盒加購優惠」':'加購優惠數量已依一般餐盒份數自動調整');
+    }
+    updateAddonAvailability();
+  }
+  function updateAddonAvailability(){
+    const status=addonRuleStatus();
+    const canAddon=status.regularQty>0;
+    const remaining=Math.max(0,status.regularQty-status.addonQty);
+    const addonSection=[...els.menuRoot.querySelectorAll('.menu-category')].find(section=>section.dataset.category==='餐盒加購優惠'||String(section.dataset.category).includes('加購'));
+    if(addonSection){
+      addonSection.classList.toggle('addon-disabled',!canAddon);
+      let note=addonSection.querySelector('.addon-rule-note');
+      const itemsBox=addonSection.querySelector('.category-items');
+      if(!note&&itemsBox){
+        note=document.createElement('div');
+        note.className='addon-rule-note';
+        itemsBox.prepend(note);
+      }
+      if(note){
+        note.textContent=canAddon
+          ? `一般餐盒可加購 ${status.regularQty} 杯，目前已選 ${status.addonQty} 杯${remaining?`，還可加購 ${remaining} 杯`:''}`
+          : (status.economicQty>0?'百元外送餐盒不適用餐盒加購優惠':'請先選擇一般餐盒，才能使用餐盒加購優惠');
+      }
+      addonSection.querySelectorAll('[data-action="plus"]').forEach(btn=>{
+        const entry=state.cart.get(btn.dataset.name);
+        const ownQty=entry?Number(entry.qty):0;
+        btn.disabled=!canAddon||remaining<=0;
+        btn.title=!canAddon?'百元外送餐盒不適用此優惠':(remaining<=0?'已達可加購上限':'');
+      });
+    }
+  }
+
   function onQtyClick(e){
     const name=e.currentTarget.dataset.name,item=state.menu.find(x=>x['品項']===name);if(!item)return;
+    const action=e.currentTarget.dataset.action;
     const limited=String(item['限量品']).toLowerCase()==='true',soldOut=String(item['今日售完']).toLowerCase()==='true'||(limited&&Number(item['每日庫存']||0)<=0);
-    if(e.currentTarget.dataset.action==='plus'&&soldOut){toast(name+'今日已售完');return}
+    if(action==='plus'&&soldOut){toast(name+'今日已售完');return}
+    if(action==='plus'&&isAddonItem(item)){
+      const status=addonRuleStatus();
+      if(status.regularQty<=0){
+        toast(status.economicQty>0?'百元外送餐盒不提供「餐盒加購優惠」':'請先選擇一般餐盒才能加購優惠飲料');
+        return;
+      }
+      if(status.addonQty>=status.regularQty){toast('餐盒加購優惠最多 '+status.regularQty+' 杯（依一般餐盒份數）');return}
+    }
     const entry=state.cart.get(name)||{item,qty:0,portions:[]};
-    if(e.currentTarget.dataset.action==='plus'){
+    if(action==='plus'){
       if(limited&&entry.qty>=Number(item['每日庫存']||0)){toast(name+'目前只剩 '+Number(item['每日庫存']||0)+' 份');return}
       entry.qty++;
     }else entry.qty=Math.max(0,entry.qty-1);
@@ -261,6 +339,7 @@
     state.cart.set(name,entry);
     document.querySelector(`[data-qty="${cssEsc(name)}"]`).textContent=entry.qty;
     renderPortionOptions(name);
+    enforceAddonLimit(action==='minus'&&isRegularBento(item));
     updateSummary();
   }
   function onUnitCustomChange(e){
@@ -283,7 +362,7 @@
   }
   function updateSummary(){
     const entries=[...state.cart.values()].filter(x=>x.qty>0);const qty=entries.reduce((s,x)=>s+x.qty,0);const total=entries.reduce((s,x)=>s+Number(x.item['價格'])*x.qty,0);
-    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.dataset.cartEmpty=String(qty===0);applyOrderingAvailability();
+    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.dataset.cartEmpty=String(qty===0);updateAddonAvailability();applyOrderingAvailability();
   }
 
 
@@ -422,10 +501,9 @@
     }
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
-    const hasBento=[...state.cart.values()].some(x=>x.qty>0&&(String(x.item['分類']).includes('餐盒')||String(x.item['分類']).includes('百元')));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&(x.item['分類']==='餐盒加購優惠'||String(x.item['分類']).includes('加購')));if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
-    const hasRegularBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒')&&!String(x.item['分類']).includes('外送百元')&&!String(x.item['分類']).includes('百元'));
-    const hasEconomicBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('百元'));
-    if(hasAddon&&hasEconomicBento&&!hasRegularBento){toast('百元外送餐盒不提供飲料加購優惠');return false}
+    const addonStatus=addonRuleStatus();
+    if(addonStatus.addonQty>0&&addonStatus.regularQty===0){toast(addonStatus.economicQty>0?'百元外送餐盒不提供「餐盒加購優惠」':'加購優惠需搭配一般餐盒');return false}
+    if(addonStatus.addonQty>addonStatus.regularQty){toast('餐盒加購優惠數量不可超過一般餐盒份數');return false}
     return true;
   }
   function buildOrderItems(){

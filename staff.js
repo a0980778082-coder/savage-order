@@ -24,7 +24,7 @@
 
   async function registerServiceWorker(){
     if(!('serviceWorker' in navigator)) return null;
-    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=374');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=377');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
   }
   function updateNotifyButton(){
     const b=$('notifyBtn'); if(!b)return;
