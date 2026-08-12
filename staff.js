@@ -24,7 +24,7 @@
 
   async function registerServiceWorker(){
     if(!('serviceWorker' in navigator)) return null;
-    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=377');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=378');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
   }
   function updateNotifyButton(){
     const b=$('notifyBtn'); if(!b)return;
@@ -238,7 +238,7 @@
       if (selectedMall && o['百貨'] !== selectedMall) return false;
       if (selectedPeriod && o['餐期'] !== selectedPeriod) return false;
       if (q) {
-        const hay = [o['櫃位/品牌'],o['聯絡人姓名'],o['聯絡電話'],o['訂單編號'],o['百貨'],o['館別'],o['樓層'],...(o.items||[]).map(i=>i['品項'])].join(' ').toLowerCase();
+        const hay = [o['櫃位/品牌'],o['聯絡人姓名'],o['聯絡電話'],o['訂單編號'],o['百貨'],o['館別'],o['樓層'],o['LINE 顯示名稱'],o['LINE User ID'],...(o.items||[]).map(i=>i['品項'])].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -278,6 +278,10 @@
       <div><span class="delivery-badge">📅 ${deliveryDate} ${esc(o['餐期'])}</span><span class="location-badge">🏬 ${esc(location)}</span></div>
       <div class="order-top"><div><div class="counter">${esc(o['櫃位/品牌'])}</div><div class="meta">訂單：${esc(o['訂單編號'])}</div></div><div class="amount">${money(o['總金額'])}<div class="payment">${esc(o['付款方式'])}${o['付款狀態']?`｜${esc(o['付款狀態'])}`:''}</div></div></div>
       <div class="contact"><b>${esc(o['聯絡人姓名'])}</b>｜<a href="tel:${esc(o['聯絡電話'])}">${esc(o['聯絡電話'])}</a></div>
+      <div class="line-identity ${o['LINE User ID']?'verified':'missing'}">
+        <span>${o['LINE User ID']?'✅ LINE 已驗證':'⚠ 未綁定 LINE'}</span>
+        ${o['LINE User ID']?`<strong>${esc(o['LINE 顯示名稱']||'LINE 使用者')}</strong><small>ID：${esc(o['LINE User ID'])}</small>`:''}
+      </div>
       <div class="invoice">發票：${esc(o['發票方式'])}${o['發票載具']?`<br>載具：<b>${esc(o['發票載具'])}</b>`:''}</div>
       ${o['付款方式']==='LINE Pay'?`<div class="linepay-check"><div><span>LINE Pay 後三碼</span><strong>${esc(o['LINE Pay後三碼']||'未填')}</strong></div><div class="payment-state ${o['付款狀態']==='已付款'?'paid':''}">${esc(o['付款狀態']||'待核對')}</div>${o['付款狀態']==='已付款'?`<button class="payment-btn undo" data-payment="${esc(o['訂單編號'])}" data-payment-status="待核對">改回待核對</button>`:`<button class="payment-btn" data-payment="${esc(o['訂單編號'])}" data-payment-status="已付款">✓ 確認已付款</button>`}</div>`:''}
       <div class="items">${items || '<div class="item">尚無餐點明細</div>'}</div>

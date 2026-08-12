@@ -50,3 +50,27 @@ body.focus-mode .sticky-tools{position:static}body.focus-mode .mobile-header{pad
   .business-dates,.business-switches{grid-template-columns:1fr}
   .business-dialog{padding:16px}
 }
+
+
+/* v37.8 LINE 訂單身分顯示 */
+.line-identity{
+  margin:10px 0;
+  padding:10px 12px;
+  border-radius:13px;
+  border:1px solid #d5e7e9;
+  background:#f6fafb;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap
+}
+.line-identity.verified{border-color:#9edeb8;background:#effbf4}
+.line-identity.missing{border-color:#efc2ba;background:#fff5f3}
+.line-identity span{font-weight:900}
+.line-identity strong{color:#166d43}
+.line-identity small{
+  width:100%;
+  color:#687d82;
+  word-break:break-all;
+  font-size:11px
+}

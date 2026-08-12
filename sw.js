@@ -1,11 +1,11 @@
 const CACHE='savage-pos-v374';
 const ASSETS=[
-  './staff.html?v=374',
-  './staff.css?v=377',
-  './staff.js?v=377',
-  './config.js?v=377',
-  './manifest.webmanifest?v=377',
-  './linepay-qr.png?v=374'
+  './staff.html?v=378',
+  './staff.css?v=378',
+  './staff.js?v=378',
+  './config.js?v=378',
+  './manifest.webmanifest?v=378',
+  './linepay-qr.png?v=378'
 ];
 
 self.addEventListener('install',event=>{
@@ -47,7 +47,7 @@ self.addEventListener('fetch',event=>{
 
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
-  const url=(event.notification.data&&event.notification.data.url)||'./staff.html?v=374';
+  const url=(event.notification.data&&event.notification.data.url)||'./staff.html?v=378';
   event.waitUntil(
     clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
       for(const client of list){
