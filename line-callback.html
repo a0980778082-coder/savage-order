@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LINE 驗證中｜小野人</title><style>body{font-family:system-ui,"Noto Sans TC",sans-serif;background:#f3f8f9;color:#17363d;display:grid;place-items:center;min-height:100vh;margin:0}.card{width:min(88vw,430px);background:#fff;padding:28px;border-radius:22px;text-align:center;box-shadow:0 18px 55px #17363d22}.spin{width:38px;height:38px;border:4px solid #dcebec;border-top-color:#06c755;border-radius:50%;animation:r .8s linear infinite;margin:0 auto 18px}@keyframes r{to{transform:rotate(360deg)}}button{border:0;border-radius:12px;padding:12px 18px;background:#06c755;color:#fff;font-weight:800}</style></head><body><div class="card"><div class="spin" id="spin"></div><h2 id="title">LINE 驗證中</h2><p id="msg">正在確認您的 LINE 身分，請稍候…</p><button id="back" hidden>返回點餐</button></div><script src="config.js?v=376"></script><script>
+(async()=>{
+  const HOME='./',p=new URLSearchParams(location.search),code=p.get('code'),state=p.get('state'),err=p.get('error');
+  const expected=sessionStorage.getItem('savage_line_oauth_state_v1')||localStorage.getItem('savage_line_oauth_state_v1');
+  const fail=m=>{document.getElementById('spin').hidden=true;document.getElementById('title').textContent='驗證未完成';document.getElementById('msg').textContent=m;document.getElementById('back').hidden=false};
+  document.getElementById('back').onclick=()=>location.href=HOME;
+  if(err)return fail('您取消了 LINE 登入，請返回後重新驗證。');
+  if(!code||!state||!expected||state!==expected)return fail('LINE 驗證狀態不一致，請返回後重新登入。');
+  try{
+    const cb='__line_'+Date.now();
+    const data=await new Promise((resolve,reject)=>{
+      const sc=document.createElement('script'),t=setTimeout(()=>reject(new Error('驗證逾時')),18000);
+      window[cb]=d=>{clearTimeout(t);delete window[cb];sc.remove();resolve(d)};
+      sc.onerror=()=>reject(new Error('無法連線驗證伺服器'));
+      sc.src=window.SAVAGE_CONFIG.API_URL+'?'+new URLSearchParams({action:'lineLoginExchange',callback:cb,code,state,redirectUri:window.SAVAGE_CONFIG.LINE_CALLBACK_URL});
+      document.head.appendChild(sc);
+    });
+    if(!data||!data.ok||!data.user||!data.user.userId||!data.authToken)throw new Error(data?.error||'LINE 驗證失敗');
+    localStorage.setItem('savage_line_auth_v1',JSON.stringify({userId:data.user.userId,displayName:data.user.displayName||'',authToken:data.authToken,expiresAt:Number(data.expiresAt||0),verifiedAt:Date.now()}));
+    sessionStorage.removeItem('savage_line_oauth_state_v1');localStorage.removeItem('savage_line_oauth_state_v1');
+    document.getElementById('title').textContent='LINE 驗證成功 ✓';document.getElementById('msg').textContent='即將返回點餐頁…';
+    setTimeout(()=>location.href=HOME,700);
+  }catch(e){fail(e.message||'LINE 驗證失敗')}
+})();
+</script></body></html>

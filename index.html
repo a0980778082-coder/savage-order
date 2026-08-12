@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=374">
+  <link rel="stylesheet" href="styles.css?v=376">
 </head>
 <body>
   <div id="siteMarquee" class="site-marquee" hidden>
@@ -27,6 +27,14 @@
   </header>
 
   <main class="page-shell">
+    <section id="lineAuthPanel" class="line-auth-panel">
+      <div class="line-auth-copy">
+        <strong>LINE 身分驗證</strong>
+        <span id="lineAuthStatus">送出訂單前需先完成 LINE 登入，避免他人冒名或亂訂餐。</span>
+      </div>
+      <button id="lineLoginBtn" class="line-login-button" type="button">使用 LINE 登入驗證</button>
+      <button id="lineLogoutBtn" class="text-button" type="button" hidden>解除驗證</button>
+    </section>
     <div id="businessStatusBanner" class="business-status-banner" hidden>
       <strong id="businessStatusTitle"></strong>
       <p id="businessStatusMessage"></p>
@@ -253,7 +261,7 @@
     <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
-  <script src="config.js?v=374"></script>
-  <script src="app.js?v=374"></script>
+  <script src="config.js?v=376"></script>
+  <script src="app.js?v=376"></script>
 </body>
 </html>

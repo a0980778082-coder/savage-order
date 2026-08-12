@@ -2,7 +2,9 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '' };
+  const LINE_AUTH_KEY = 'savage_line_auth_v1';
+  const LINE_STATE_KEY = 'savage_line_oauth_state_v1';
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', lineUser: null };
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), linePayLast3:$('linePayLast3'), linePayAcknowledged:$('linePayAcknowledged'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
@@ -21,6 +23,7 @@
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
+    restoreLineAuth();
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
@@ -95,7 +98,39 @@
     $('closeAnnouncementBtn').addEventListener('click',()=>els.announcementDialog.close());
     $('ackAnnouncementBtn').addEventListener('click',()=>els.announcementDialog.close());
     window.addEventListener('message',handleSubmitResponse);
+    $('lineLoginBtn').addEventListener('click',startLineLogin);
+    $('lineLogoutBtn').addEventListener('click',clearLineAuth);
   }
+
+  function randomToken(){
+    const a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  function restoreLineAuth(){
+    try{state.lineUser=JSON.parse(localStorage.getItem(LINE_AUTH_KEY)||'null')}catch(ignore){state.lineUser=null}
+    if(state.lineUser&&(!state.lineUser.authToken||!state.lineUser.expiresAt||Date.now()>=Number(state.lineUser.expiresAt))){
+      localStorage.removeItem(LINE_AUTH_KEY);state.lineUser=null;
+    }
+    renderLineAuth();
+  }
+  function renderLineAuth(){
+    const ok=!!(state.lineUser&&state.lineUser.userId&&state.lineUser.authToken);
+    $('lineLoginBtn').hidden=ok;$('lineLogoutBtn').hidden=!ok;
+    $('lineAuthPanel').classList.toggle('verified',ok);
+    $('lineAuthStatus').textContent=ok?`已驗證：${state.lineUser.displayName||'LINE 使用者'} ✓`:'送出訂單前需先完成 LINE 登入，避免他人冒名或亂訂餐。';
+    if(els.submitBtn)applyOrderingAvailability();
+  }
+  async function startLineLogin(){
+    if(!cfg.LINE_LOGIN_CHANNEL_ID||!cfg.LINE_CALLBACK_URL){toast('LINE 登入尚未完成設定');return}
+    try{
+      $('lineLoginBtn').disabled=true;$('lineLoginBtn').textContent='正在連線 LINE…';
+      const res=await jsonp('lineLoginStart');
+      if(!res||!res.ok||!res.state)throw new Error(res?.error||'無法建立 LINE 登入驗證');
+      const stateToken=res.state;sessionStorage.setItem(LINE_STATE_KEY,stateToken);localStorage.setItem(LINE_STATE_KEY,stateToken);
+      const q=new URLSearchParams({response_type:'code',client_id:cfg.LINE_LOGIN_CHANNEL_ID,redirect_uri:cfg.LINE_CALLBACK_URL,state:stateToken,scope:'profile openid'});
+      location.href='https://access.line.me/oauth2/v2.1/authorize?'+q.toString();
+    }catch(e){toast(e.message||'LINE 登入失敗');$('lineLoginBtn').disabled=false;$('lineLoginBtn').textContent='使用 LINE 登入驗證'}
+  }
+  function clearLineAuth(){localStorage.removeItem(LINE_AUTH_KEY);state.lineUser=null;renderLineAuth();toast('已解除 LINE 驗證')}
 
   function restoreDeliveryProfile(){
     let profile=null;
@@ -318,7 +353,7 @@
   function applyOrderingAvailability(){
     const reason=orderingBlockReason();
     const cartEmpty=els.submitBtn.dataset.cartEmpty!=='false';
-    els.submitBtn.disabled=!!reason||cartEmpty||state.submitting;
+    els.submitBtn.disabled=!!reason||cartEmpty||state.submitting||!(state.lineUser&&state.lineUser.userId&&state.lineUser.authToken);
     els.submitBtn.classList.toggle('ordering-closed',!!reason);
     if(reason){
       els.submitBtn.textContent=reason.includes('午餐')?'午餐暫停接單':reason.includes('晚餐')?'晚餐暫停接單':'目前店休';
@@ -374,6 +409,7 @@
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
   function validate(){
+    if(!(state.lineUser&&state.lineUser.userId&&state.lineUser.authToken)){toast('請先完成 LINE 登入驗證');$('lineLoginBtn').focus();return false}
     const blocked=orderingBlockReason();if(blocked){toast(blocked);return false}
     const required=[['deliveryDate','請選擇送餐日期'],['mall','請選擇百貨'],['building','請選擇館別'],['floor','請選擇樓層'],['counterName','請填寫櫃位／品牌'],['contactName','請填寫聯絡人'],['contactPhone','請填寫聯絡電話']];
     for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
@@ -386,7 +422,10 @@
     }
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
-    const hasBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒'));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&x.item['分類']==='餐盒加購優惠');if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
+    const hasBento=[...state.cart.values()].some(x=>x.qty>0&&(String(x.item['分類']).includes('餐盒')||String(x.item['分類']).includes('百元')));const hasAddon=[...state.cart.values()].some(x=>x.qty>0&&(x.item['分類']==='餐盒加購優惠'||String(x.item['分類']).includes('加購')));if(hasAddon&&!hasBento){toast('加購優惠需搭配至少一份餐盒');return false}
+    const hasRegularBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('餐盒')&&!String(x.item['分類']).includes('外送百元')&&!String(x.item['分類']).includes('百元'));
+    const hasEconomicBento=[...state.cart.values()].some(x=>x.qty>0&&String(x.item['分類']).includes('百元'));
+    if(hasAddon&&hasEconomicBento&&!hasRegularBento){toast('百元外送餐盒不提供飲料加購優惠');return false}
     return true;
   }
   function buildOrderItems(){
@@ -410,7 +449,7 @@
     });
     return rows;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
+  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),lineAuthToken:state.lineUser?.authToken||'',items:buildOrderItems()}}
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);

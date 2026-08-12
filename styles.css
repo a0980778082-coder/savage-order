@@ -108,3 +108,11 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
   .portion-row{grid-template-columns:1fr 1fr}
   .portion-number{grid-column:1/-1;padding-bottom:0}
 }
+
+
+/* v37.5 LINE 身分驗證 */
+.line-auth-panel{display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:15px 18px;border:1px solid #d7e7e9;border-radius:18px;background:#fff;box-shadow:0 8px 22px rgba(23,54,61,.06)}
+.line-auth-copy{display:grid;gap:3px;flex:1}.line-auth-copy strong{font-size:17px}.line-auth-copy span{font-size:13px;color:#647b80;line-height:1.5}
+.line-auth-panel.verified{border-color:#78d6a1;background:#f2fff7}.line-auth-panel.verified .line-auth-copy span{color:#197443;font-weight:800}
+.line-login-button{border:0;border-radius:12px;background:#06c755;color:#fff;padding:11px 16px;font:inherit;font-weight:900;cursor:pointer;white-space:nowrap}
+@media(max-width:640px){.line-auth-panel{align-items:stretch;flex-direction:column}.line-login-button{width:100%;min-height:46px}}
