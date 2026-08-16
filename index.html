@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=378">
+  <link rel="stylesheet" href="styles.css?v=380">
 </head>
 <body>
   <div id="siteMarquee" class="site-marquee" hidden>
@@ -32,6 +32,14 @@
       <p id="businessStatusMessage"></p>
     </div>
     <div id="editBanner" class="edit-banner" hidden>✏️ 正在修改訂單 <strong id="editOrderNo"></strong>；送出後會直接更新原訂單。</div>
+
+    <section class="history-entry-card" aria-label="歷史訂單查詢">
+      <div>
+        <strong>🧾 歷史訂單查詢</strong>
+        <p>用聯絡手機＋4碼查詢密碼查看過去訂單，也可以一鍵再訂一次。</p>
+      </div>
+      <button id="openHistoryBtn" type="button" class="history-entry-button">查詢我的訂單</button>
+    </section>
     <section class="panel" aria-labelledby="delivery-title">
       <div class="section-heading">
         <span class="step">1</span>
@@ -46,6 +54,7 @@
         <label class="field"><span>櫃位／品牌名稱</span><input id="counterName" type="text" maxlength="40" placeholder="例如：LV、NIKE" autocomplete="organization" required></label>
         <label class="field"><span>聯絡人姓名</span><input id="contactName" type="text" maxlength="30" placeholder="例如：王小姐" autocomplete="name" required></label>
         <label class="field"><span>聯絡電話</span><input id="contactPhone" type="tel" inputmode="tel" maxlength="20" placeholder="例如：0912345678" autocomplete="tel" required></label>
+        <label class="field"><span>歷史查詢密碼 <em>選填</em></span><input id="historyPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4位數，例如：2580" autocomplete="new-password"><small>第一次設定後，以後可用手機＋此4碼查看歷史訂單。已設定者不需每次重填。</small></label>
       </div>
 
       <div class="delivery-memory">
@@ -134,7 +143,7 @@
           </ol>
           <p>例如：付款手機號碼為 0980-778-082，請傳送 <strong>082</strong>。</p>
         </div>
-        <img id="linePayQr" src="./linepay-qr.png?v=378" alt="LINE Pay QR Code">
+        <img id="linePayQr" src="./linepay-qr.png?v=380" alt="LINE Pay QR Code">
         <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
         <label id="linePayLast3Field" class="field linepay-last3-field">
           <span>付款手機後三碼 <em>必填</em></span>
@@ -192,6 +201,22 @@
     <h2 id="announcementDialogTitle">系統公告</h2>
     <p id="announcementDialogMessage"></p>
     <button id="ackAnnouncementBtn" class="primary-button" type="button">知道了</button>
+  </dialog>
+
+  <dialog id="historyDialog" class="history-dialog">
+    <button id="closeHistoryBtn" class="dialog-close" type="button" aria-label="關閉">×</button>
+    <div class="history-dialog-head">
+      <div class="history-icon">🧾</div>
+      <div><h2>歷史訂單查詢</h2><p>輸入下單手機與4碼查詢密碼</p></div>
+    </div>
+    <div class="history-login-grid">
+      <label class="field"><span>聯絡手機</span><input id="historyPhone" type="tel" inputmode="tel" maxlength="20" placeholder="0912345678" autocomplete="tel"></label>
+      <label class="field"><span>4碼查詢密碼</span><input id="historyLookupPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" autocomplete="off"></label>
+    </div>
+    <button id="historyLookupBtn" class="primary-button history-lookup-button" type="button">查詢歷史訂單</button>
+    <p class="history-help">尚未設定密碼？下一次下單時在「歷史查詢密碼」設定4碼即可。忘記密碼請聯絡店家協助重設。</p>
+    <div id="historyLoading" class="history-loading" hidden><span class="spinner"></span>正在查詢…</div>
+    <div id="historyResults" class="history-results" hidden></div>
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
@@ -253,7 +278,12 @@
     <input type="hidden" name="payload" id="spinPayloadInput">
   </form>
 
-  <script src="config.js?v=378"></script>
-  <script src="app.js?v=378"></script>
+  <form id="historyForm" method="post" target="submitFrame" hidden>
+    <input type="hidden" name="action" value="customerHistory">
+    <input type="hidden" name="payload" id="historyPayloadInput">
+  </form>
+
+  <script src="config.js?v=380"></script>
+  <script src="app.js?v=380"></script>
 </body>
 </html>
