@@ -534,6 +534,7 @@
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
     if(d.action==='customerHistory'){handleHistoryResponse(d);return}
+    if(d.action==='customerCancelOrder'){handleCustomerCancelResponse(d);return}
     clearTimeout(state.submitTimer);state.submitting=false;els.submitBtn.textContent='送出訂單';hideSubmitOverlay();updateSummary();
     if(d.ok){
       saveDeliveryProfile();
@@ -582,13 +583,32 @@
         <div class="history-order-top"><div><strong>${esc(o.deliveryDateDisplay||o.deliveryDate||'')}</strong><small>${esc(o.mealPeriod||'')}｜${esc(o.mall||'')} ${esc(o.building||'')} ${esc(o.floor||'')}</small></div><span class="history-status">${esc(o.status||'')}</span></div>
         <div class="history-counter">${esc(o.counterName||'')}｜訂單 ${esc(o.orderNo||'')}</div>
         <ul>${items}</ul>
-        <div class="history-order-bottom"><div><small>${esc(o.paymentMethod||'')}｜${esc(o.paymentStatus||'')}</small><strong>$${Number(o.total||0).toLocaleString('zh-TW')}</strong></div><button type="button" class="history-reorder-button" data-history-reorder="${i}">再訂一次</button></div>
+        <div class="history-order-bottom"><div><small>${esc(o.paymentMethod||'')}｜${esc(o.paymentStatus||'')}</small><strong>$${Number(o.total||0).toLocaleString('zh-TW')}</strong></div><div class="history-actions"><button type="button" class="history-reorder-button" data-history-reorder="${i}">再訂一次</button>${o.canCancel?`<button type="button" class="history-cancel-button" data-history-cancel="${i}">取消訂單</button>`:(String(o.status||'').includes('取消')?'':`<small class="history-cancel-note">${esc(o.cancelMessage||'已進入處理流程，如需取消請聯絡店家')}</small>`)}</div></div>
       </article>`;
     }).join('');
   }
   function onHistoryResultClick(e){
+    const cancelBtn=e.target.closest('[data-history-cancel]');
+    if(cancelBtn){cancelHistoryOrder(Number(cancelBtn.dataset.historyCancel));return}
     const btn=e.target.closest('[data-history-reorder]');if(!btn)return;
     reorderFromHistory(Number(btn.dataset.historyReorder));
+  }
+  function cancelHistoryOrder(index){
+    const order=state.historyOrders[index];if(!order||!order.canCancel)return;
+    const paymentNote=order.paymentMethod==='LINE Pay'&&order.paymentStatus==='已付款'?'\n\n此筆已付款，取消後會標示「待退款」，請等待店家處理退款。':'';
+    if(!confirm(`確定取消訂單 ${order.orderNo}？\n送餐日期：${order.deliveryDateDisplay||order.deliveryDate||''}${paymentNote}`))return;
+    const phone=$('historyPhone').value.trim(),pin=$('historyLookupPin').value.trim();
+    $('historyPayloadInput').value=JSON.stringify({requestId:makeRequestId(),phone,pin,orderNo:order.orderNo,reason:'客人自行取消'});
+    $('historyActionInput').value='customerCancelOrder';
+    state.historyLoading=true;$('historyLoading').hidden=false;
+    $('historyForm').action=cfg.API_URL;$('historyForm').submit();
+  }
+  function handleCustomerCancelResponse(d){
+    state.historyLoading=false;$('historyLoading').hidden=true;
+    if(!d.ok){toast(d.error||'取消失敗');return}
+    toast(d.refundPending?'訂單已取消，付款將由店家確認退款':'訂單已取消');
+    $('historyActionInput').value='customerHistory';
+    lookupHistory();
   }
   function reorderFromHistory(index){
     const order=state.historyOrders[index];if(!order)return;

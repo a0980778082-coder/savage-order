@@ -271,10 +271,11 @@
 
   function orderCard(o) {
     const done = boolTrue(o['POS已Key']);
+    const cancelled=String(o['訂單狀態']||'').includes('取消');
     const deliveryDate=esc(o['送餐日期']||'未設定');
     const location=[o['百貨'],o['館別'],o['樓層']].filter(Boolean).join('｜');
     const items = (o.items || []).map(i => `<div class="item"><div><div class="item-name">${esc(i['品項'])}</div>${i['飯量/客製']?`<div class="custom">⚠ ${esc(i['飯量/客製'])}</div>`:''}</div><div class="qty">×${esc(i['數量'])}</div></div>`).join('');
-    return `<article class="order-card ${done?'done':''}" data-order-card="${esc(o['訂單編號'])}">
+    return `<article class="order-card ${done?'done':''} ${cancelled?'cancelled':''}" data-order-card="${esc(o['訂單編號'])}">
       <div><span class="delivery-badge">📅 ${deliveryDate} ${esc(o['餐期'])}</span><span class="location-badge">🏬 ${esc(location)}</span></div>
       <div class="order-top"><div><div class="counter">${esc(o['櫃位/品牌'])}</div><div class="meta">訂單：${esc(o['訂單編號'])}</div></div><div class="amount">${money(o['總金額'])}<div class="payment">${esc(o['付款方式'])}${o['付款狀態']?`｜${esc(o['付款狀態'])}`:''}</div></div></div>
       <div class="contact"><b>${esc(o['聯絡人姓名'])}</b>｜<a href="tel:${esc(o['聯絡電話'])}">${esc(o['聯絡電話'])}</a></div>
@@ -286,7 +287,7 @@
       ${o['付款方式']==='LINE Pay'?`<div class="linepay-check"><div><span>LINE Pay 後三碼</span><strong>${esc(o['LINE Pay後三碼']||'未填')}</strong></div><div class="payment-state ${o['付款狀態']==='已付款'?'paid':''}">${esc(o['付款狀態']||'待核對')}</div>${o['付款狀態']==='已付款'?`<button class="payment-btn undo" data-payment="${esc(o['訂單編號'])}" data-payment-status="待核對">改回待核對</button>`:`<button class="payment-btn" data-payment="${esc(o['訂單編號'])}" data-payment-status="已付款">✓ 確認已付款</button>`}</div>`:''}
       <div class="items">${items || '<div class="item">尚無餐點明細</div>'}</div>
       <div class="note">⚠ 備註：${esc(o['訂單備註']||'無')}</div>
-      <div class="actions"><select data-status="${esc(o['訂單編號'])}">${['新訂單','製作中','已完成','已送達'].map(s=>`<option ${s===o['訂單狀態']?'selected':''}>${s}</option>`).join('')}</select><button class="key-btn ${done?'cancel':''}" data-key="${esc(o['訂單編號'])}" data-value="${done?'false':'true'}">${done?'取消已 Key':'✓ 完成 Key 單'}</button></div>
+      <div class="actions"><select data-status="${esc(o['訂單編號'])}" ${cancelled?'disabled':''}>${['新訂單','製作中','已完成','已送達','客人取消','店家取消'].map(s=>`<option ${s===o['訂單狀態']?'selected':''}>${s}</option>`).join('')}</select><button class="key-btn ${done?'cancel':''}" data-key="${esc(o['訂單編號'])}" data-value="${done?'false':'true'}" ${cancelled?'disabled':''}>${done?'取消已 Key':'✓ 完成 Key 單'}</button>${cancelled?'':`<button class="cancel-order-btn" data-cancel-order="${esc(o['訂單編號'])}">取消訂單</button>`}</div>
     </article>`;
   }
 
@@ -295,6 +296,15 @@
     try { await apiPost('updateOrderStatus',{token,orderNo:no,status,posKeyed}); showToast(posKeyed===true?'已完成 Key 單':'已更新'); await loadOrders(); }
     catch(e) { showToast(e.message); }
     finally { setBlocking(false); }
+  }
+
+  async function cancelOrderByStaff(no){
+    const reason=prompt('請輸入取消原因（例如：客人日期選錯、重複下單）','客人來電取消');
+    if(reason===null)return;
+    if(!confirm('確定取消訂單 '+no+'？取消後會保留紀錄並自動回補限量庫存。'))return;
+    setBlocking(true);
+    try{const r=await apiPost('staffCancelOrder',{token,orderNo:no,reason:reason||'店家取消'});showToast(r.refundPending?'已取消，LINE Pay 已標示待退款':'訂單已取消','success');await loadOrders();}
+    catch(e){showToast(e.message,'error')}finally{setBlocking(false)}
   }
 
   async function updatePayment(no, paymentStatus) {
@@ -403,6 +413,8 @@
   document.querySelector('.stats').addEventListener('click', e => { const b=e.target.closest('[data-mode-shortcut]'); if(!b)return; $('modeFilter').value=b.dataset.modeShortcut; render(); });
   $('orderList').addEventListener('change', e => { if(e.target.matches('[data-status]')) update(e.target.dataset.status,e.target.value,null); });
   $('orderList').addEventListener('click', e => {
+    const cancelBtn=e.target.closest('[data-cancel-order]');
+    if(cancelBtn){cancelOrderByStaff(cancelBtn.dataset.cancelOrder);return;}
     const pay=e.target.closest('[data-payment]');
     if(pay){
       const status=pay.dataset.paymentStatus;

@@ -74,3 +74,5 @@ body.focus-mode .sticky-tools{position:static}body.focus-mode .mobile-header{pad
   word-break:break-all;
   font-size:11px
 }
+
+.cancel-order-btn{border:1px solid #c84b4b;background:#fff;color:#b43838;border-radius:10px;padding:9px 12px;font-weight:800}.order-card.cancelled{opacity:.68}.order-card.cancelled .counter{text-decoration:line-through}
