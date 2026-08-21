@@ -76,3 +76,10 @@ body.focus-mode .sticky-tools{position:static}body.focus-mode .mobile-header{pad
 }
 
 .cancel-order-btn{border:1px solid #c84b4b;background:#fff;color:#b43838;border-radius:10px;padding:9px 12px;font-weight:800}.order-card.cancelled{opacity:.68}.order-card.cancelled .counter{text-decoration:line-through}
+
+
+/* v37.9 一般模式取消底部黏住 */
+body:not(.focus-mode) .actions{
+  position:static;
+  bottom:auto;
+}
