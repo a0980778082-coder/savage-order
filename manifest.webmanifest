@@ -1,11 +1,13 @@
 {
-  "name": "小野人員工 POS Key 單",
-  "short_name": "小野人 POS",
-  "start_url": "./staff.html?v=370",
+  "id": "./",
+  "name": "小野人百貨點餐",
+  "short_name": "小野人點餐",
+  "description": "小野人餐盒製造所百貨專屬點餐與配送通知",
+  "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",
   "background_color": "#eef3f4",
-  "theme_color": "#27616b",
+  "theme_color": "#86c6d1",
   "lang": "zh-TW",
   "icons": [
     {

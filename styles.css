@@ -135,3 +135,8 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
 /* V38.1 訂單取消 */
 .history-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.history-cancel-button{border:1px solid #c84b4b;background:#fff;color:#b43838;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}.history-cancel-note{display:block;max-width:190px;color:#777;font-size:12px;line-height:1.4}
 .cancel-order-btn{border:1px solid #c84b4b;background:#fff;color:#b43838;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}.order-card.cancelled{opacity:.7}.order-card.cancelled .counter{text-decoration:line-through}
+
+/* V40 PWA */
+.pwa-install-card{border:1px solid #b8dce2;background:linear-gradient(135deg,#f6fcfd,#eef8fa)}
+.pwa-install-card[hidden]{display:none!important}
+@media(display-mode:standalone){#pwaInstallCard{display:none!important}}

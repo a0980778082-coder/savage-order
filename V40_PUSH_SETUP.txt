@@ -1,0 +1,6 @@
+V40 PWA + Push 準備說明
+- 已完成：PWA manifest、Android 安裝引導、iPhone/iPad 加入主畫面引導、Service Worker、通知權限、背景 Push 接收骨架。
+- iPhone/iPad：需 iOS/iPadOS 16.4+，先加入主畫面，再從主畫面 App 內開啟通知。
+- Android：Chrome 可安裝 PWA 並允許通知。
+- 真正由後台主動發送「配送中／已抵達／已送達」仍需設定 Web Push 推播伺服器與 VAPID 金鑰。
+- VAPID 私鑰不可放 GitHub 前端，必須放安全後端。

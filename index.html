@@ -10,6 +10,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=3811">
+  <link rel="manifest" href="./manifest.webmanifest?v=400">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="小野人點餐">
+  <link rel="apple-touch-icon" href="./icon-192.svg">
 </head>
 <body>
   <div id="siteMarquee" class="site-marquee" hidden>
@@ -33,6 +38,15 @@
     </div>
     <div id="editBanner" class="edit-banner" hidden>✏️ 正在修改訂單 <strong id="editOrderNo"></strong>；送出後會直接更新原訂單。</div>
 
+
+    <section id="pwaInstallCard" class="history-entry-card pwa-install-card" aria-label="安裝點餐 App">
+      <div><strong>📲 小野人點餐 App</strong><p id="pwaInstallText">安裝到手機主畫面，訂單與配送通知不漏接。</p></div>
+      <button id="pwaInstallBtn" type="button" class="history-entry-button">安裝 App</button>
+    </section>
+    <section id="pushCard" class="history-entry-card pwa-install-card" aria-label="訂單通知">
+      <div><strong>🔔 訂單配送通知</strong><p id="pushStatusText">安裝 App 後可開啟通知。</p></div>
+      <button id="enablePushBtn" type="button" class="history-entry-button">開啟通知</button>
+    </section>
     <section class="history-entry-card" aria-label="歷史訂單查詢">
       <div>
         <strong>🧾 歷史訂單查詢</strong>
@@ -282,6 +296,7 @@
   </form>
 
   <script src="config.js?v=380"></script>
+  <script src="pwa.js?v=400"></script>
   <script src="app.js?v=3811"></script>
 </body>
 </html>

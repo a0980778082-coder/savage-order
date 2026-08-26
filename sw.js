@@ -1,59 +1,7 @@
-const CACHE='savage-pos-v374';
-const ASSETS=[
-  './staff.html?v=378',
-  './staff.css?v=378',
-  './staff.js?v=378',
-  './config.js?v=378',
-  './manifest.webmanifest?v=378',
-  './linepay-qr.png?v=378'
-];
-
-self.addEventListener('install',event=>{
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).catch(err=>console.warn('預快取失敗',err))
-  );
-});
-
-self.addEventListener('activate',event=>{
-  event.waitUntil(
-    caches.keys()
-      .then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-      .then(()=>self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch',event=>{
-  if(event.request.method!=='GET') return;
-  event.respondWith(
-    fetch(event.request)
-      .then(response=>{
-        if(!response || !response.ok) throw new Error('HTTP '+(response?response.status:'no response'));
-        const copy=response.clone();
-        caches.open(CACHE).then(cache=>cache.put(event.request,copy)).catch(()=>{});
-        return response;
-      })
-      .catch(async()=>{
-        const cached=await caches.match(event.request);
-        if(cached) return cached;
-        return new Response('Resource unavailable',{
-          status:503,
-          statusText:'Service Unavailable',
-          headers:{'Content-Type':'text/plain; charset=utf-8'}
-        });
-      })
-  );
-});
-
-self.addEventListener('notificationclick',event=>{
-  event.notification.close();
-  const url=(event.notification.data&&event.notification.data.url)||'./staff.html?v=378';
-  event.waitUntil(
-    clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
-      for(const client of list){
-        if('focus' in client) return client.focus();
-      }
-      return clients.openWindow(url);
-    })
-  );
-});
+const CACHE='savage-order-v400';
+const ASSETS=['./','./index.html','./styles.css?v=400','./app.js?v=400','./pwa.js?v=400','./config.js?v=400','./manifest.webmanifest?v=400'];
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r&&r.ok){const c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c)).catch(()=>{});}return r;}).catch(()=>caches.match(e.request)));});
+self.addEventListener('push',event=>{let d={};try{d=event.data?event.data.json():{}}catch(_){d={body:event.data?event.data.text():'訂單狀態已更新'}}const title=d.title||'小野人點餐';const options={body:d.body||'訂單狀態已更新',icon:'./icon-192.svg',badge:'./icon-192.svg',tag:d.tag||'savage-order',data:{url:d.url||'./?source=push'}};event.waitUntil(self.registration.showNotification(title,options));});
+self.addEventListener('notificationclick',event=>{event.notification.close();const url=(event.notification.data&&event.notification.data.url)||'./?source=push';event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const c of list){if('focus'in c){c.navigate(url);return c.focus();}}return clients.openWindow(url);}));});
