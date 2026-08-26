@@ -24,7 +24,7 @@
 
   async function registerServiceWorker(){
     if(!('serviceWorker' in navigator)) return null;
-    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=390');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=392');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
   }
   function updateNotifyButton(){
     const b=$('notifyBtn'); if(!b)return;
@@ -320,39 +320,25 @@
 
 
   // ===== V39 智慧配送 =====
-  let deliverySession=null,geoWatchId=null,mallGeoRows=[];
+  let deliverySession=null,geoWatchId=null,mallGeoRows=[],deliveryMallRows=[];
   function haversineMeters(a,b,c,d){const R=6371000,rad=x=>x*Math.PI/180,dp=rad(c-a),dl=rad(d-b),q=Math.sin(dp/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(q));}
   async function openDelivery(){
     $('deliveryDialog').showModal();
     try{
-      const [r,pd]=await Promise.all([
-        apiPost('deliveryConfigGet',{token}),
-        jsonp('publicData').catch(()=>null)
-      ]);
-      mallGeoRows=r.rows||[];
-      if(pd&&pd.ok!==false) window.__PUBLIC_DATA__=pd;
+      const r=await apiPost('deliveryConfigGet',{token});
+      mallGeoRows=Array.isArray(r.rows)?r.rows:[];
+      deliveryMallRows=Array.isArray(r.malls)?r.malls:[];
       renderDeliveryMallOptions();
-      if($('deliveryMall').options.length<=1) showToast('目前找不到百貨資料，請先確認後台已有百貨設定','error');
+      if($('deliveryMall').options.length<=1){
+        showToast('百貨清單為空，請確認試算表「百貨樓層」已有啟用資料','error');
+      }
     }catch(e){showToast(e.message,'error')}
   }
   function renderDeliveryMallOptions(){
-    // V39.1：百貨選單不能依賴「今天有沒有訂單」。
-    // 優先從系統既有 publicData/malls 取得，再合併目前訂單與已儲存 GPS 的百貨。
-    const fromPublic=[];
-    const pd=window.__PUBLIC_DATA__||window.publicData||state?.publicData||{};
-    const rawMalls=pd.malls||pd.mallOptions||pd.mallList||[];
-    if(Array.isArray(rawMalls)){
-      rawMalls.forEach(m=>{
-        if(typeof m==='string') fromPublic.push(m);
-        else if(m&&typeof m==='object') fromPublic.push(String(m.name||m.mall||m['百貨']||''));
-      });
-    }
-    // 現有員工頁若已經有百貨篩選選項，也一起收進來。
-    const mallSelect=document.getElementById('mallFilter')||document.getElementById('mallSelect');
-    if(mallSelect) [...mallSelect.options].forEach(o=>{if(o.value)fromPublic.push(o.value)});
-    const fromOrders=[...new Set(allRows.map(x=>String(x['百貨']||'')).filter(Boolean))];
+    // V39.2：配送百貨由 Apps Script 直接讀「百貨樓層」工作表回傳，不依賴當日訂單或客人頁資料。
+    const configured=deliveryMallRows.map(x=>typeof x==='string'?x:String((x&&x.mall)||'')).filter(Boolean);
     const known=mallGeoRows.map(x=>String(x.mall||'')).filter(Boolean);
-    const malls=[...new Set([...fromPublic,...fromOrders,...known].map(x=>String(x||'').trim()).filter(Boolean))].sort();
+    const malls=[...new Set([...configured,...known].map(x=>String(x||'').trim()).filter(Boolean))].sort();
     $('deliveryMall').innerHTML='<option value="">請選擇百貨</option>'+malls.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
     if(selectedMall&&[...$('deliveryMall').options].some(o=>o.value===selectedMall))$('deliveryMall').value=selectedMall;
     fillMallGeo();
