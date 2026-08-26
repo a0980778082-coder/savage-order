@@ -77,19 +77,5 @@ body.focus-mode .sticky-tools{position:static}body.focus-mode .mobile-header{pad
 
 .cancel-order-btn{border:1px solid #c84b4b;background:#fff;color:#b43838;border-radius:10px;padding:9px 12px;font-weight:800}.order-card.cancelled{opacity:.68}.order-card.cancelled .counter{text-decoration:line-through}
 
-
-/* v37.9 一般模式全部跟著頁面正常捲動 */
-body:not(.focus-mode) .sticky-tools{
-  position:static;
-  top:auto;
-}
-
-body:not(.focus-mode) .floor-title{
-  position:static;
-  top:auto;
-}
-
-body:not(.focus-mode) .actions{
-  position:static;
-  bottom:auto;
-}
+/* V39 智慧配送 */
+.delivery-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.delivery-hint{font-size:13px;line-height:1.6;color:#667;margin:4px 0}.delivery-dialog .business-preview{display:flex;flex-direction:column;gap:4px}.delivery-dialog .business-preview.arrived{border-color:#2e8b57;background:#eefaf3}.delivery-dialog .business-preview.near{border-color:#d59a28;background:#fff9e8}@media(max-width:600px){.delivery-actions{grid-template-columns:1fr}}

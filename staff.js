@@ -24,7 +24,7 @@
 
   async function registerServiceWorker(){
     if(!('serviceWorker' in navigator)) return null;
-    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=378');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=390');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
   }
   function updateNotifyButton(){
     const b=$('notifyBtn'); if(!b)return;
@@ -319,6 +319,42 @@
 
 
 
+  // ===== V39 智慧配送 =====
+  let deliverySession=null,geoWatchId=null,mallGeoRows=[];
+  function haversineMeters(a,b,c,d){const R=6371000,rad=x=>x*Math.PI/180,dp=rad(c-a),dl=rad(d-b),q=Math.sin(dp/2)**2+Math.cos(rad(a))*Math.cos(rad(c))*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(q));}
+  async function openDelivery(){
+    $('deliveryDialog').showModal();
+    try{const r=await apiPost('deliveryConfigGet',{token});mallGeoRows=r.rows||[];renderDeliveryMallOptions();}
+    catch(e){showToast(e.message,'error')}
+  }
+  function renderDeliveryMallOptions(){
+    const malls=[...new Set(allRows.map(x=>String(x['百貨']||'')).filter(Boolean))];
+    const known=mallGeoRows.map(x=>String(x.mall||'')).filter(Boolean);[...new Set([...malls,...known])].sort().forEach(()=>{});
+    $('deliveryMall').innerHTML='<option value="">請選擇百貨</option>'+[...new Set([...malls,...known])].sort().map(x=>`<option>${esc(x)}</option>`).join('');
+    if(selectedMall&&[...$('deliveryMall').options].some(o=>o.value===selectedMall))$('deliveryMall').value=selectedMall;
+    fillMallGeo();
+  }
+  function fillMallGeo(){const m=$('deliveryMall').value,r=mallGeoRows.find(x=>x.mall===m)||{};$('mallLat').value=r.lat??'';$('mallLng').value=r.lng??'';$('mallRadius').value=r.radius||150;}
+  async function saveMallGeo(){
+    const mall=$('deliveryMall').value,lat=Number($('mallLat').value),lng=Number($('mallLng').value),radius=Number($('mallRadius').value||150);
+    if(!mall||!Number.isFinite(lat)||!Number.isFinite(lng)){showToast('請選百貨並填入正確座標','error');return}
+    try{await apiPost('deliveryConfigSave',{token,mall,lat,lng,radius});showToast('百貨座標已儲存','success');const r=await apiPost('deliveryConfigGet',{token});mallGeoRows=r.rows||[];}catch(e){showToast(e.message,'error')}
+  }
+  function useCurrentLocation(){if(!navigator.geolocation){showToast('此裝置不支援定位','error');return}navigator.geolocation.getCurrentPosition(p=>{$('mallLat').value=p.coords.latitude.toFixed(6);$('mallLng').value=p.coords.longitude.toFixed(6);showToast('已帶入目前位置','success')},e=>showToast('無法取得位置：'+e.message,'error'),{enableHighAccuracy:true,timeout:12000});}
+  async function startDelivery(){
+    const mall=$('deliveryMall').value;if(!mall){showToast('請先選擇配送百貨','error');return}
+    const cfg=mallGeoRows.find(x=>x.mall===mall);if(!cfg){showToast('請先儲存這家百貨的 GPS 座標','error');return}
+    try{deliverySession=await apiPost('deliveryStart',{token,mall,deliveryDate:selectedDeliveryDate||localDateValue(new Date())});$('startDeliveryBtn').hidden=true;$('arrivedDeliveryBtn').hidden=false;$('finishDeliveryBtn').hidden=false;updateDeliveryState('配送中','正在前往 '+mall+'，GPS 定位已啟動。');startGeoWatch(cfg);await loadOrders();}catch(e){showToast(e.message,'error')}
+  }
+  function startGeoWatch(cfg){
+    if(!navigator.geolocation){showToast('此裝置不支援 GPS，請使用手動抵達','error');return}
+    if(geoWatchId!==null)navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId=navigator.geolocation.watchPosition(async p=>{if(!deliverySession)return;const dist=Math.round(haversineMeters(p.coords.latitude,p.coords.longitude,Number(cfg.lat),Number(cfg.lng)));updateDeliveryState(dist<=Number(cfg.radius)?'已進入抵達範圍':'配送中',`距離 ${deliverySession.mall} 約 ${dist} 公尺`);if(dist<=Number(cfg.radius)&&!deliverySession.arrived){try{await markArrived(true)}catch(e){console.warn(e)}}},e=>updateDeliveryState('GPS 定位中斷','可使用「我已抵達百貨」手動確認。'),{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+  }
+  function updateDeliveryState(title,text){$('deliveryState').innerHTML=`<strong>${esc(title)}</strong><span>${esc(text)}</span>`;$('deliveryState').classList.toggle('arrived',title.includes('抵達'));}
+  async function markArrived(auto=false){if(!deliverySession)return;const r=await apiPost('deliveryArrive',{token,tripId:deliverySession.tripId});deliverySession.arrived=true;updateDeliveryState('📍 已抵達百貨',auto?'GPS 已自動判定抵達，開始送餐。':'已手動確認抵達，開始送餐。');$('arrivedDeliveryBtn').hidden=true;showToast('客人訂單已顯示「已抵達百貨」','success');await loadOrders();return r;}
+  async function finishDelivery(){if(!deliverySession)return;if(!confirm('確定完成這一趟配送？'))return;try{await apiPost('deliveryFinish',{token,tripId:deliverySession.tripId});if(geoWatchId!==null)navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;deliverySession=null;$('startDeliveryBtn').hidden=false;$('arrivedDeliveryBtn').hidden=true;$('finishDeliveryBtn').hidden=true;updateDeliveryState('配送完成','本趟配送已結束。');await loadOrders();}catch(e){showToast(e.message,'error')}}
+
   function checkedValue(id){return $(id).checked?'TRUE':'FALSE'}
   function businessDefaults(status){
     return {
@@ -426,6 +462,14 @@
     if(b) update(b.dataset.key,null,b.dataset.value==='true');
   });
 
+  $('deliveryBtn').addEventListener('click',openDelivery);
+  $('closeDeliveryBtn').addEventListener('click',()=>$('deliveryDialog').close());
+  $('deliveryMall').addEventListener('change',fillMallGeo);
+  $('useCurrentLocationBtn').addEventListener('click',useCurrentLocation);
+  $('saveMallGeoBtn').addEventListener('click',saveMallGeo);
+  $('startDeliveryBtn').addEventListener('click',startDelivery);
+  $('arrivedDeliveryBtn').addEventListener('click',()=>markArrived(false));
+  $('finishDeliveryBtn').addEventListener('click',finishDelivery);
   selectedDeliveryDate=localDateValue(new Date());$('staffDeliveryDate').value=selectedDeliveryDate;
   $('staffDeliveryDate').addEventListener('change',e=>{selectedDeliveryDate=e.target.value;loadOrders();});
   $('todayDateBtn').addEventListener('click',()=>{selectedDeliveryDate=localDateValue(new Date());$('staffDeliveryDate').value=selectedDeliveryDate;loadOrders();});

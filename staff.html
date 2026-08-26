@@ -8,8 +8,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
-  <link rel="manifest" href="manifest.webmanifest?v=380">
-  <link rel="stylesheet" href="staff.css?v=380">
+  <link rel="manifest" href="manifest.webmanifest?v=390">
+  <link rel="stylesheet" href="staff.css?v=390">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -31,7 +31,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="businessBtn" class="ghost">營業公告</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
+        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -111,6 +111,26 @@
     </div>
   </dialog>
 
+  <dialog id="deliveryDialog" class="business-dialog delivery-dialog">
+    <div class="inventory-head"><div><h2>🚗 智慧配送</h2><p>設定百貨座標、開始配送；手機進入抵達半徑後可自動標記已抵達。</p></div><button id="closeDeliveryBtn" class="ghost" type="button">關閉</button></div>
+    <div class="business-form">
+      <label><span>配送百貨</span><select id="deliveryMall"></select></label>
+      <div class="business-dates">
+        <label><span>緯度 Latitude</span><input id="mallLat" inputmode="decimal" placeholder="24.150000"></label>
+        <label><span>經度 Longitude</span><input id="mallLng" inputmode="decimal" placeholder="120.680000"></label>
+      </div>
+      <label><span>抵達判定半徑（公尺）</span><input id="mallRadius" type="number" min="50" max="1000" value="150"></label>
+      <div class="delivery-actions">
+        <button id="useCurrentLocationBtn" class="ghost" type="button">📍 用目前位置設定座標</button>
+        <button id="saveMallGeoBtn" class="ghost" type="button">儲存百貨座標</button>
+      </div>
+      <div id="deliveryState" class="business-preview"><strong>尚未開始配送</strong><span>選擇百貨後按開始配送。</span></div>
+      <button id="startDeliveryBtn" class="primary big" type="button">🚗 開始配送</button>
+      <button id="arrivedDeliveryBtn" class="primary big" type="button" hidden>📍 我已抵達百貨</button>
+      <button id="finishDeliveryBtn" class="ghost big" type="button" hidden>完成本趟配送</button>
+      <p class="delivery-hint">GPS 自動抵達需要允許瀏覽器定位，且配送頁需保持開啟。iPhone 鎖屏或長時間切到背景時可能停止定位，因此保留「我已抵達」手動按鈕。</p>
+    </div>
+  </dialog>
 
   <dialog id="loginResultDialog" class="result-dialog">
     <div id="loginResultIcon" class="result-icon">✓</div>
@@ -119,7 +139,7 @@
     <button id="loginResultBtn" class="primary big" type="button">確定</button>
   </dialog>
 
-  <script src="config.js?v=378"></script>
-  <script src="staff.js?v=378"></script>
+  <script src="config.js?v=390"></script>
+  <script src="staff.js?v=390"></script>
 </body>
 </html>
