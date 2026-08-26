@@ -1,7 +1,44 @@
-const CACHE='savage-order-v401';
-const ASSETS=['./','./index.html','./styles.css?v=401','./app.js?v=401','./pwa.js?v=401','./config.js?v=401','./manifest.webmanifest?v=401'];
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r&&r.ok){const c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c)).catch(()=>{});}return r;}).catch(()=>caches.match(e.request)));});
-self.addEventListener('push',event=>{let d={};try{d=event.data?event.data.json():{}}catch(_){d={body:event.data?event.data.text():'訂單狀態已更新'}}const title=d.title||'小野人點餐';const options={body:d.body||'訂單狀態已更新',icon:'./icon-192.svg',badge:'./icon-192.svg',tag:d.tag||'savage-order',data:{url:d.url||'./?source=push'}};event.waitUntil(self.registration.showNotification(title,options));});
-self.addEventListener('notificationclick',event=>{event.notification.close();const url=(event.notification.data&&event.notification.data.url)||'./?source=push';event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const c of list){if('focus'in c){c.navigate(url);return c.focus();}}return clients.openWindow(url);}));});
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+
+const CACHE='savage-order-v402';
+const ASSETS=[
+  './',
+  './index.html',
+  './styles.css?v=3811',
+  './app.js?v=3811',
+  './pwa.js?v=402',
+  './config.js?v=380',
+  './manifest.webmanifest?v=401'
+];
+
+self.addEventListener('install',e=>{
+  self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c=>c.addAll(ASSETS))
+      .catch(()=>{})
+  );
+});
+
+self.addEventListener('activate',e=>{
+  e.waitUntil(
+    caches.keys()
+      .then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+      .then(()=>self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET')return;
+  e.respondWith(
+    fetch(e.request)
+      .then(r=>{
+        if(r&&r.ok){
+          const c=r.clone();
+          caches.open(CACHE).then(x=>x.put(e.request,c)).catch(()=>{});
+        }
+        return r;
+      })
+      .catch(()=>caches.match(e.request))
+  );
+});
