@@ -1,5 +1,5 @@
-const CACHE='savage-order-v400';
-const ASSETS=['./','./index.html','./styles.css?v=400','./app.js?v=400','./pwa.js?v=400','./config.js?v=400','./manifest.webmanifest?v=400'];
+const CACHE='savage-order-v401';
+const ASSETS=['./','./index.html','./styles.css?v=401','./app.js?v=401','./pwa.js?v=401','./config.js?v=401','./manifest.webmanifest?v=401'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r&&r.ok){const c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c)).catch(()=>{});}return r;}).catch(()=>caches.match(e.request)));});

@@ -1,0 +1,8 @@
+V40.1 更新內容
+1. 自動辨識 iPhone / iPad / Android。
+2. iPhone 顯示 Safari「分享 → 加入主畫面」教學。
+3. Android 優先直接呼叫 Chrome PWA 安裝視窗。
+4. Android 無法直接安裝時，顯示 Chrome「安裝應用程式 / 加到主畫面」教學。
+5. 開啟通知前會依裝置給正確提示。
+6. Service Worker 與快取版本升級至 401。
+7. 保留 V39.2 智慧配送、歷史訂單免密碼等既有功能。
