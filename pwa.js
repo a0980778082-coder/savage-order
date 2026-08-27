@@ -708,71 +708,141 @@ window.addEventListener(
    頁面載入
 ========================================================= */
 
-document.addEventListener(
-  'DOMContentLoaded',
-  async () => {
+document.addEventListener('DOMContentLoaded', async () => {
 
-    updateInstallUI();
+  updateInstallUI();
 
+  await registerSW();
 
-    await registerSW();
+  $('pwaInstallBtn')
+    ?.addEventListener(
+      'click',
+      installPWA
+    );
 
-
-    /* 安裝 App */
-
-    $('pwaInstallBtn')
-      ?.addEventListener(
-        'click',
-        installPWA
-      );
-
-
-    /* 開啟通知 */
-
-    $('enablePushBtn')
-      ?.addEventListener(
-        'click',
-        enablePush
-      );
+  $('enablePushBtn')
+    ?.addEventListener(
+      'click',
+      enablePush
+    );
 
 
-    /* 如果之前已允許通知 */
+  /* 聯絡手機填好後，自動綁定推播 */
+
+  const contactPhone =
+    $('contactPhone');
+
+  if(contactPhone){
+
+    contactPhone.addEventListener(
+      'change',
+      async () => {
+
+        const phone =
+          currentPhone();
+
+        if(
+          Notification.permission === 'granted' &&
+          /^09\d{8}$/.test(phone)
+        ){
+
+          await syncPushPhone(phone);
+
+        }
+
+      }
+    );
+
+
+    contactPhone.addEventListener(
+      'blur',
+      async () => {
+
+        const phone =
+          currentPhone();
+
+        if(
+          Notification.permission === 'granted' &&
+          /^09\d{8}$/.test(phone)
+        ){
+
+          await syncPushPhone(phone);
+
+        }
+
+      }
+    );
+
+  }
+
+
+  /*
+   * 已有通知權限
+   * 不能直接假裝綁定完成
+   */
+
+  if(
+    window.Notification &&
+    Notification.permission === 'granted'
+  ){
+
+    const phone =
+      currentPhone();
+
 
     if(
-      window.Notification &&
-      Notification.permission ===
-        'granted'
+      /^09\d{8}$/.test(phone)
     ){
 
       if($('pushStatusText')){
 
         $('pushStatusText').textContent =
-          '訂單通知已開啟 ✅';
+          '正在同步訂單通知…';
 
       }
 
+      const ok =
+        await syncPushPhone(phone);
+
+
+      if(!ok){
+
+        if($('pushStatusText')){
+
+          $('pushStatusText').textContent =
+            '通知權限已開啟，請重新綁定手機。';
+
+        }
+
+        if($('enablePushBtn')){
+
+          $('enablePushBtn').hidden =
+            false;
+
+        }
+
+      }
+
+    }
+
+    else{
+
+      if($('pushStatusText')){
+
+        $('pushStatusText').textContent =
+          '通知權限已開啟，填入聯絡手機後即可完成綁定。';
+
+      }
 
       if($('enablePushBtn')){
 
         $('enablePushBtn').hidden =
-          true;
-
-      }
-
-
-      const phone =
-        currentPhone();
-
-
-      if(phone){
-
-        syncPushPhone(phone);
+          false;
 
       }
 
     }
 
   }
-);
 
-})();
+});
