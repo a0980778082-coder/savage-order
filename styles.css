@@ -140,3 +140,150 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
 .pwa-install-card{border:1px solid #b8dce2;background:linear-gradient(135deg,#f6fcfd,#eef8fa)}
 .pwa-install-card[hidden]{display:none!important}
 @media(display-mode:standalone){#pwaInstallCard{display:none!important}}
+
+/* =========================================================
+   V40.5 POS 操作區修正版
+   一般模式＋專注模式
+========================================================= */
+
+.actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:14px;
+  position:static;
+  background:transparent;
+  padding:0;
+}
+
+.actions select{
+  grid-column:1 / -1;
+  width:100%;
+  min-height:48px;
+  border:1px solid #cbd8db;
+  border-radius:12px;
+  background:#fff;
+  padding:8px 12px;
+  font-size:16px;
+}
+
+.actions button{
+  min-height:54px;
+  border-radius:13px;
+  font-size:17px;
+}
+
+.key-btn{
+  width:100%;
+  border:0;
+  background:var(--brand);
+  color:#fff;
+  font-weight:950;
+  box-shadow:none;
+}
+
+.key-btn.cancel{
+  background:#78898d;
+}
+
+.cancel-order-btn{
+  width:100%;
+  min-height:54px;
+  border:1px solid #d36b6b;
+  background:#fff;
+  color:#b43838;
+  border-radius:13px;
+  padding:8px 10px;
+  font-size:16px;
+  font-weight:850;
+}
+
+
+/* ===== 專注模式 ===== */
+
+body.focus-mode .order-card{
+  min-height:auto;
+  display:block;
+  padding-bottom:94px;
+}
+
+body.focus-mode .order-card .actions{
+  position:sticky;
+  bottom:calc(8px + env(safe-area-inset-bottom));
+  z-index:20;
+
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:8px;
+
+  margin-top:18px;
+  padding:9px;
+
+  background:rgba(255,255,255,.96);
+  backdrop-filter:blur(10px);
+
+  border:1px solid #dce7e9;
+  border-radius:17px;
+  box-shadow:0 8px 28px rgba(23,52,59,.16);
+}
+
+body.focus-mode .actions select{
+  grid-column:1 / -1;
+  min-height:46px;
+  font-size:15px;
+}
+
+body.focus-mode .key-btn{
+  min-height:64px;
+  font-size:20px;
+}
+
+body.focus-mode .cancel-order-btn{
+  width:auto;
+  min-width:92px;
+  min-height:64px;
+  padding:8px 13px;
+  font-size:15px;
+}
+
+
+/* ===== 手機 ===== */
+
+@media(max-width:640px){
+
+  .actions{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .actions select{
+    grid-column:1 / -1;
+    min-height:48px;
+    font-size:16px;
+  }
+
+  .actions button{
+    width:100%;
+    min-height:54px;
+    font-size:17px;
+  }
+
+  body.focus-mode .actions{
+    grid-template-columns:1fr auto;
+  }
+
+  body.focus-mode .actions select{
+    grid-column:1 / -1;
+  }
+
+  body.focus-mode .key-btn{
+    min-height:64px;
+    font-size:21px;
+  }
+
+  body.focus-mode .cancel-order-btn{
+    width:auto;
+    min-width:88px;
+    min-height:64px;
+    font-size:14px;
+  }
+}
