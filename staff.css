@@ -79,3 +79,112 @@ body.focus-mode .sticky-tools{position:static}body.focus-mode .mobile-header{pad
 
 /* V39 智慧配送 */
 .delivery-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.delivery-hint{font-size:13px;line-height:1.6;color:#667;margin:4px 0}.delivery-dialog .business-preview{display:flex;flex-direction:column;gap:4px}.delivery-dialog .business-preview.arrived{border-color:#2e8b57;background:#eefaf3}.delivery-dialog .business-preview.near{border-color:#d59a28;background:#fff9e8}@media(max-width:600px){.delivery-actions{grid-template-columns:1fr}}
+
+/* =========================================================
+   V40.4 POS 操作區修正
+   一般模式：操作按鈕回到訂單最底部
+   專注模式：Key 單按鈕醒目，但不遮住餐點
+========================================================= */
+
+.actions{
+  position:static !important;
+  bottom:auto !important;
+  z-index:auto !important;
+
+  display:grid;
+  grid-template-columns:1fr 1.35fr auto;
+  gap:9px;
+
+  margin-top:16px;
+  padding-top:14px;
+
+  background:#fff;
+  border-top:1px solid #e1eaec;
+  border-radius:0;
+}
+
+.actions select,
+.actions button{
+  min-height:56px;
+  font-size:17px;
+  padding:10px 12px;
+}
+
+.key-btn{
+  min-height:60px !important;
+  font-size:19px !important;
+  font-weight:950;
+}
+
+.cancel-order-btn{
+  min-height:56px !important;
+  padding:8px 12px !important;
+  font-size:15px !important;
+  white-space:nowrap;
+}
+
+
+/* ===== 專注 Key 單模式 ===== */
+
+body.focus-mode .order-card{
+  min-height:0 !important;
+  display:block !important;
+}
+
+body.focus-mode .order-card .actions{
+  margin-top:18px !important;
+  position:static !important;
+}
+
+body.focus-mode .items{
+  margin-top:16px;
+}
+
+body.focus-mode .item{
+  padding:20px 16px;
+}
+
+body.focus-mode .item-name{
+  font-size:26px;
+}
+
+body.focus-mode .qty{
+  font-size:34px;
+}
+
+body.focus-mode .note{
+  font-size:21px;
+  margin-top:16px;
+}
+
+
+/* ===== 手機 ===== */
+
+@media(max-width:640px){
+
+  .actions{
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+
+  .actions select{
+    grid-column:1 / -1;
+    min-height:50px;
+    font-size:16px;
+  }
+
+  .key-btn{
+    min-height:64px !important;
+    font-size:20px !important;
+  }
+
+  .cancel-order-btn{
+    min-height:64px !important;
+    font-size:15px !important;
+  }
+
+  body.focus-mode .key-btn{
+    font-size:22px !important;
+    min-height:70px !important;
+  }
+}
