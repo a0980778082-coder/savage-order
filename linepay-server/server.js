@@ -136,7 +136,7 @@ async function putSheetValues(range, values) {
 async function ensurePaymentHeaders() {
   const rows = await getSheetValues(sheetRange('1:1'));
   const headers = rows[0] || [];
-  const needed = ['LINE Pay交易編號','LINE Pay付款時間','LINE Pay錯誤碼','LINE Pay錯誤訊息'];
+  const needed = ['LINE Pay交易編號','LINE Pay付款時間'];
   for (const name of needed) {
     if (headers.indexOf(name) === -1) {
       headers.push(name);
@@ -224,9 +224,7 @@ async function handleRequestPayment(req, res) {
   await updateOrderFields(order, {
     '付款方式':'LINE Pay',
     '付款狀態':'未付款',
-    'LINE Pay交易編號':transactionId,
-    'LINE Pay錯誤碼':'',
-    'LINE Pay錯誤訊息':''
+    'LINE Pay交易編號':transactionId
   });
 
   return json(res, 200, { ok:true, orderNo, transactionId, paymentUrl });
@@ -237,13 +235,6 @@ async function handleConfirm(url, res) {
   const transactionId = String(url.searchParams.get('transactionId') || '').trim();
 
   if (!/^\d{1,30}$/.test(transactionId)) {
-    try {
-      const order = await findOrder(orderNo);
-      await updateOrderFields(order, {
-        'LINE Pay錯誤碼':'CONFIRM_URL',
-        'LINE Pay錯誤訊息':'LINE Pay confirmUrl 未帶入有效 transactionId'
-      });
-    } catch (ignore) {}
     return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
   }
 
@@ -268,18 +259,13 @@ async function handleConfirm(url, res) {
     await updateOrderFields(order, {
       '付款狀態':'已付款',
       'LINE Pay交易編號':transactionId,
-      'LINE Pay付款時間':paidAt,
-      'LINE Pay錯誤碼':'',
-      'LINE Pay錯誤訊息':''
+      'LINE Pay付款時間':paidAt
     });
     return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
   }
 
-  await updateOrderFields(order, {
-    '付款狀態':'未付款',
-    'LINE Pay錯誤碼':String(result.returnCode || ''),
-    'LINE Pay錯誤訊息':String(result.returnMessage || '')
-  });
+  console.error('LINE Pay confirm failed:', result.returnCode, result.returnMessage);
+  await updateOrderFields(order, { '付款狀態':'未付款' });
   return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
 }
 
