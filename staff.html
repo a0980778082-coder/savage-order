@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
   <link rel="manifest" href="manifest.webmanifest?v=405">
-  <link rel="stylesheet" href="staff.css?v=408">
+  <link rel="stylesheet" href="staff.css?v=409">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -31,7 +31,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
+        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="settlementBtn" class="ghost settlement-btn">💰 每日結帳</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -152,6 +152,33 @@
     </div>
   </dialog>
 
+  <dialog id="settlementDialog" class="settlement-dialog">
+    <div class="settlement-head">
+      <div><h2>💰 每日結帳報表</h2><p id="settlementDateLabel">依目前送餐日期統計</p></div>
+      <button id="closeSettlementBtn" class="ghost" type="button">關閉</button>
+    </div>
+    <div class="settlement-hero">
+      <span>有效訂單總額</span>
+      <strong id="settlementTotal">$0</strong>
+      <small><b id="settlementOrderCount">0</b> 筆有效訂單</small>
+    </div>
+    <div class="settlement-grid">
+      <div class="settlement-card cash"><span>💵 現金應收</span><strong id="settlementCash">$0</strong><small id="settlementCashCount">0 筆</small></div>
+      <div class="settlement-card linepay"><span>LINE Pay 已收</span><strong id="settlementLinePay">$0</strong><small id="settlementLinePayCount">0 筆</small></div>
+      <div class="settlement-card other"><span>其他付款</span><strong id="settlementOther">$0</strong><small id="settlementOtherCount">0 筆</small></div>
+      <div class="settlement-card warning"><span>⚠ LINE Pay 未完成</span><strong id="settlementUnpaid">$0</strong><small id="settlementUnpaidCount">0 筆</small></div>
+    </div>
+    <div class="settlement-breakdown">
+      <div><span>午餐</span><strong id="settlementLunch">$0</strong><small id="settlementLunchCount">0 筆</small></div>
+      <div><span>晚餐</span><strong id="settlementDinner">$0</strong><small id="settlementDinnerCount">0 筆</small></div>
+      <div><span>取消訂單</span><strong id="settlementCancelled">0 筆</strong><small id="settlementCancelledAmount">$0</small></div>
+    </div>
+    <div class="settlement-note">現金顯示「應收」；LINE Pay 僅把付款狀態為「已付款」計入已收金額。</div>
+    <div class="settlement-actions">
+      <button id="copySettlementBtn" class="primary big" type="button">複製結帳摘要</button>
+    </div>
+  </dialog>
+
   <dialog id="loginResultDialog" class="result-dialog">
     <div id="loginResultIcon" class="result-icon">✓</div>
     <h2 id="loginResultTitle">登入成功</h2>
@@ -160,6 +187,6 @@
   </dialog>
 
   <script src="config.js?v=405"></script>
-  <script src="staff.js?v=408"></script>
+  <script src="staff.js?v=409"></script>
 </body>
 </html>
