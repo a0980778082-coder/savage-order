@@ -133,7 +133,7 @@
     <section class="panel" aria-labelledby="payment-title">
       <div class="section-heading">
         <span class="step">4</span>
-        <div><h2 id="payment-title">付款與發票</h2><p>LINE Pay 與轉帳資訊會依選項顯示</p></div>
+        <div><h2 id="payment-title">付款與發票</h2><p>LINE Pay 會在送單後自動開啟付款頁</p></div>
       </div>
 
       <fieldset class="choice-fieldset">
@@ -146,27 +146,16 @@
       </fieldset>
 
       <div id="linePayBox" class="payment-box linepay-box" hidden>
-        <strong>請掃描 LINE Pay QR Code 完成付款</strong>
+        <strong>LINE Pay 線上付款</strong>
         <div class="linepay-warning">
-          <b>⚠️ LINE Pay 付款提醒</b>
+          <b>付款流程</b>
           <ol>
-            <li>請先掃描下方 QR Code 並完成付款。</li>
-            <li>付款完成後，請將「付款手機號碼後三碼」傳送至社群，通知管理員核對。</li>
-            <li>管理員核對前，訂單付款狀態會顯示為「待核對」。</li>
+            <li>選好餐點後按「送出訂單」。</li>
+            <li>系統會自動跳轉至 LINE Pay 付款頁。</li>
+            <li>付款完成後會自動核對，不需要再傳手機後三碼。</li>
           </ol>
-          <p>例如：付款手機號碼為 0980-778-082，請傳送 <strong>082</strong>。</p>
+          <p>若付款頁未開啟，請勿重複下單，畫面會保留訂單編號供查詢。</p>
         </div>
-        <img id="linePayQr" src="./linepay-qr.png?v=380" alt="LINE Pay QR Code">
-        <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
-        <label id="linePayLast3Field" class="field linepay-last3-field">
-          <span>付款手機後三碼 <em>必填</em></span>
-          <input id="linePayLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}" placeholder="例如：082" autocomplete="off">
-          <small>請輸入實際用來 LINE Pay 付款的手機號碼後三碼，並將同樣三碼傳送至社群。</small>
-        </label>
-        <label class="linepay-confirm-check">
-          <input id="linePayAcknowledged" type="checkbox">
-          <span>我知道付款後仍需到社群傳送手機後三碼，通知管理員核對。</span>
-        </label>
       </div>
       <div id="transferBox" class="payment-box" hidden>
         <strong>轉帳資訊</strong>
@@ -326,6 +315,6 @@
 
 <script src="config.js?v=407"></script>
 <script src="pwa.js?v=404"></script>
-<script src="app.js?v=408"></script>
+<script src="app.js?v=409"></script>
 </body>
 </html>

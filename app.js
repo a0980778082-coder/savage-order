@@ -4,7 +4,7 @@
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
   const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [] };
   const $ = (id) => document.getElementById(id);
-  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), linePayLast3:$('linePayLast3'), linePayAcknowledged:$('linePayAcknowledged'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
+  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -437,39 +437,12 @@
     $('bankCode').textContent=s['銀行代碼']||'—';
     $('bankAccount').textContent=s['轉帳帳號']||'—';
     $('bankHolder').textContent=s['轉帳戶名']||'—';
-
-    const qr=$('linePayQr');
-    const missing=$('linePayMissing');
-    const localQr='./linepay-qr.png?v=373';
-    const configured=String(s.LINE_PAY_QR_URL||'').trim();
-
-    qr.hidden=false;
-    missing.hidden=true;
-    qr.onerror=()=>{
-      if(!qr.src.includes('linepay-qr.png')){
-        qr.src=localQr;
-        return;
-      }
-      qr.hidden=true;
-      missing.hidden=false;
-    };
-    qr.onload=()=>{
-      qr.hidden=false;
-      missing.hidden=true;
-    };
-
-    // 有設定網址時先嘗試；失敗就自動退回專案內的 QR 圖片。
-    qr.src=configured||localQr;
   }
   function renderPaymentChoice(){
     const v=document.querySelector('input[name="paymentMethod"]:checked').value;
     const isLinePay=v==='LINE Pay';
     els.linePayBox.hidden=!isLinePay;
     els.transferBox.hidden=v!=='轉帳';
-    if(!isLinePay){
-      els.linePayLast3.value='';
-      els.linePayAcknowledged.checked=false;
-    }
   }
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
@@ -478,12 +451,6 @@
     const required=[['deliveryDate','請選擇送餐日期'],['mall','請選擇百貨'],['building','請選擇館別'],['floor','請選擇樓層'],['counterName','請填寫櫃位／品牌'],['contactName','請填寫聯絡人'],['contactPhone','請填寫聯絡電話']];
     for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
     if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
-    const payment=document.querySelector('input[name="paymentMethod"]:checked').value;
-    if(payment==='LINE Pay'){
-      const last3=els.linePayLast3.value.trim();
-      if(!/^\d{3}$/.test(last3)){toast('請輸入 LINE Pay 付款手機後三碼');els.linePayLast3.focus();return false}
-      if(!els.linePayAcknowledged.checked){toast('請勾選「付款後會到社群傳送後三碼」');els.linePayAcknowledged.focus();return false}
-    }
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
     const addonStatus=addonRuleStatus();
@@ -514,7 +481,7 @@
   }
   function buildPayload(){
     const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
-    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
+    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
   }
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
@@ -593,7 +560,7 @@
     if(isLinePay){
       paymentNote=paymentStatus==='已付款'
         ?'LINE Pay 付款已完成。'
-        :`LINE Pay 手機後三碼 ${esc(order.linePayLast3||'—')}，店家核對後會更新付款狀態。`;
+        :'完成付款後，系統會自動更新付款狀態，不需要再傳手機後三碼。';
     }else if(payment==='轉帳'){
       paymentNote='完成轉帳後請保留明細，店家核對後會更新付款狀態。';
     }else{
