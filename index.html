@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260923">
+  <link rel="stylesheet" href="styles.css?v=411">
   <link rel="manifest" href="./manifest.webmanifest?v=401">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -279,18 +279,24 @@
   <dialog id="wheelDialog" class="wheel-dialog">
     <button id="closeWheelBtn" class="dialog-close" type="button" aria-label="關閉">×</button>
     <h2>小野人好運輪盤</h2>
-    <p>祝你好運！獎品會綁定本次聯絡電話。</p>
+    <p>10 格機率與後台一致，指針停在哪格就是該結果。</p>
     <div class="wheel-stage">
       <div class="wheel-pointer">▼</div>
-      <div id="prizeWheel" class="prize-wheel">
-        <span class="wheel-label label-a">免費蒸蛋</span>
-        <span class="wheel-label label-b">折 $5</span>
-        <span class="wheel-label label-c">下次加油</span>
-        <span class="wheel-label label-d">下次加油</span>
+      <div id="prizeWheel" class="prize-wheel" role="img" aria-label="好運輪盤：免費蒸蛋一格、折抵五元一格、下次加油八格">
+        <span class="wheel-label is-prize" style="--angle:18deg">蒸蛋</span>
+        <span class="wheel-label is-prize" style="--angle:54deg">$5</span>
+        <span class="wheel-label" style="--angle:90deg">加油</span>
+        <span class="wheel-label" style="--angle:126deg">加油</span>
+        <span class="wheel-label" style="--angle:162deg">加油</span>
+        <span class="wheel-label" style="--angle:198deg">加油</span>
+        <span class="wheel-label" style="--angle:234deg">加油</span>
+        <span class="wheel-label" style="--angle:270deg">加油</span>
+        <span class="wheel-label" style="--angle:306deg">加油</span>
+        <span class="wheel-label" style="--angle:342deg">加油</span>
       </div>
     </div>
     <button id="startSpinBtn" class="spin-button" type="button">開始轉動</button>
-    <div id="spinResult" class="spin-result" hidden>
+    <div id="spinResult" class="spin-result" aria-live="polite" hidden>
       <p id="spinResultLead">恭喜獲得</p>
       <strong id="spinPrize"></strong>
       <div class="coupon-code" id="spinCoupon"></div>
@@ -315,6 +321,6 @@
 
 <script src="config.js?v=407"></script>
 <script src="pwa.js?v=404"></script>
-<script src="app.js?v=410"></script>
+<script src="app.js?v=411"></script>
 </body>
 </html>

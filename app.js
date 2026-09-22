@@ -106,7 +106,11 @@
     els.submitBtn.addEventListener('click',submitOrder);$('newOrderBtn').addEventListener('click',()=>location.reload());$('editOrderBtn').addEventListener('click',startEditOrder);$('orderFailBtn').addEventListener('click',()=>$('orderResultDialog').close());
     $('spinBtn').addEventListener('click',openWheel);
     $('startSpinBtn').addEventListener('click',startSpin);
-    $('closeWheelBtn').addEventListener('click',()=>els.wheelDialog.close());
+    $('closeWheelBtn').addEventListener('click',()=>{
+      if(state.spinning){toast('輪盤正在轉動，請稍候');return}
+      els.wheelDialog.close();
+    });
+    els.wheelDialog.addEventListener('cancel',event=>{if(state.spinning)event.preventDefault()});
     $('couponCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/\s+/g,'')});
     $('clearDeliveryMemory').addEventListener('click',clearDeliveryMemory);
     $('closeAnnouncementBtn').addEventListener('click',()=>els.announcementDialog.close());
@@ -711,8 +715,82 @@
     }
   }
 
+  let wheelFrame=null;
+  let wheelAngle=0;
+  let wheelLastTime=0;
+
+  function wheelStage(){return els.prizeWheel.closest('.wheel-stage')}
+
+  function stopWheelFrame(){
+    if(wheelFrame!==null)cancelAnimationFrame(wheelFrame);
+    wheelFrame=null;
+    wheelLastTime=0;
+  }
+
+  function beginWheelMotion(){
+    stopWheelFrame();
+    els.prizeWheel.style.transition='none';
+    wheelStage().classList.add('is-spinning');
+    const step=(time)=>{
+      if(!state.spinning)return;
+      if(!wheelLastTime)wheelLastTime=time;
+      const elapsed=Math.min(34,time-wheelLastTime);
+      wheelLastTime=time;
+      wheelAngle+=elapsed*.58;
+      els.prizeWheel.style.transform=`rotate(${wheelAngle}deg)`;
+      wheelFrame=requestAnimationFrame(step);
+    };
+    wheelFrame=requestAnimationFrame(step);
+  }
+
+  function wheelLandingAngle(prize){
+    // 10 等分與後台機率一致：蒸蛋 1 格、折抵 1 格、沒中 8 格。
+    let centerAngle;
+    if(prize.includes('蒸蛋'))centerAngle=18;
+    else if(prize.includes('折抵'))centerAngle=54;
+    else{
+      const noWinCenters=[90,126,162,198,234,270,306,342];
+      centerAngle=noWinCenters[Math.floor(Math.random()*noWinCenters.length)];
+    }
+    return (360-centerAngle)%360;
+  }
+
+  function landWheel(prize,onComplete){
+    stopWheelFrame();
+    const currentMod=((wheelAngle%360)+360)%360;
+    const landingMod=wheelLandingAngle(prize);
+    const forwardOffset=(landingMod-currentMod+360)%360;
+    const reducedMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration=reducedMotion?1400:5200;
+    const finalAngle=wheelAngle+(reducedMotion?2:6)*360+forwardOffset;
+    let finished=false;
+    let fallbackTimer;
+    const finish=()=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(fallbackTimer);
+      els.prizeWheel.removeEventListener('transitionend',handleEnd);
+      wheelAngle=finalAngle;
+      wheelStage().classList.remove('is-spinning');
+      wheelStage().classList.add('has-landed');
+      onComplete();
+    };
+    const handleEnd=(event)=>{if(event.propertyName==='transform')finish()};
+    els.prizeWheel.addEventListener('transitionend',handleEnd);
+    fallbackTimer=setTimeout(finish,duration+350);
+    requestAnimationFrame(()=>{
+      els.prizeWheel.style.transition=`transform ${duration}ms cubic-bezier(.08,.72,.12,1)`;
+      els.prizeWheel.style.transform=`rotate(${finalAngle}deg)`;
+    });
+  }
+
   function openWheel(){
     if(!state.lastOrder)return;
+    stopWheelFrame();
+    wheelAngle=0;
+    wheelStage().classList.remove('is-spinning','has-landed');
+    els.wheelDialog.classList.remove('wheel-winner','wheel-no-win');
+    els.prizeWheel.style.transition='none';
     els.prizeWheel.style.transform='rotate(0deg)';
     els.spinResult.hidden=true;
     $('startSpinBtn').hidden=false;
@@ -725,6 +803,7 @@
     state.spinning=true;
     $('startSpinBtn').disabled=true;
     $('startSpinBtn').textContent='轉動中…';
+    beginWheelMotion();
     $('spinPayloadInput').value=JSON.stringify({phone:state.lastOrder.phone,orderNo:state.lastOrder.orderNo});
     $('spinForm').action=cfg.API_URL;
     $('spinForm').submit();
@@ -734,20 +813,22 @@
     if(!state.spinning)return;
     if(!d.ok){
       state.spinning=false;
+      stopWheelFrame();
+      wheelStage().classList.remove('is-spinning');
+      els.prizeWheel.style.transition='transform .7s ease-out';
       $('startSpinBtn').disabled=false;
       $('startSpinBtn').textContent='開始轉動';
       toast(d.error||'輪盤暫時無法使用');
       return;
     }
     const prize=d.reward||'沒中，下次加油';
-    const isNoWin=prize.includes('沒中');
-    const target=prize.includes('蒸蛋')?2925:(prize.includes('折抵')?3045:3165);
-    els.prizeWheel.style.transform=`rotate(${target}deg)`;
-    setTimeout(()=>{
+    const isNoWin=prize.includes('沒中')||prize.includes('加油')||(!prize.includes('蒸蛋')&&!prize.includes('折抵'));
+    landWheel(prize,()=>{
       state.spinning=false;
       $('startSpinBtn').hidden=true;
       $('startSpinBtn').textContent='開始轉動';
       els.spinResult.hidden=false;
+      els.wheelDialog.classList.add(isNoWin?'wheel-no-win':'wheel-winner');
       $('spinPrize').textContent=isNoWin?'這次沒中，下次加油！':prize;
       $('spinResultLead').textContent=isNoWin?'再接再厲':'恭喜獲得';
       $('spinCoupon').hidden=isNoWin;
@@ -756,7 +837,7 @@
       if(state.lastOrder&&state.lastOrder.rewardStatus){
         state.lastOrder.rewardStatus.availableSpins=Math.max(0,Number(state.lastOrder.rewardStatus.availableSpins||1)-1);
       }
-    },4300);
+    });
   }
   // V39：歷史訂單視窗開啟時自動更新配送狀態
   let historyAutoTimer=null;
