@@ -37,6 +37,7 @@
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
+    renderPaymentChoice();
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
@@ -433,16 +434,20 @@
 
   function renderPaymentInfo(){
     const s=state.settings;
-    $('bankName').textContent=s['銀行名稱']||'—';
-    $('bankCode').textContent=s['銀行代碼']||'—';
-    $('bankAccount').textContent=s['轉帳帳號']||'—';
-    $('bankHolder').textContent=s['轉帳戶名']||'—';
+    $('bankName').textContent=s['銀行名稱']||'永豐銀行';
+    $('bankCode').textContent=s['銀行代碼']||'807';
+    $('bankAccount').textContent=s['轉帳帳號']||'1201800250286';
+    $('bankHolder').textContent=s['轉帳戶名']||'禾盛餐食行';
   }
   function renderPaymentChoice(){
-    const v=document.querySelector('input[name="paymentMethod"]:checked').value;
+    const selected=document.querySelector('input[name="paymentMethod"]:checked');
+    const v=selected?selected.value:'現金';
     const isLinePay=v==='LINE Pay';
+    const isTransfer=v==='轉帳';
     els.linePayBox.hidden=!isLinePay;
-    els.transferBox.hidden=v!=='轉帳';
+    els.linePayBox.style.display=isLinePay?'grid':'none';
+    els.transferBox.hidden=!isTransfer;
+    els.transferBox.style.display=isTransfer?'block':'none';
   }
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
