@@ -14,6 +14,7 @@
   let knownOrderNos = new Set();
   let swRegistration = null;
   let businessSettings = {};
+  let anomalyOnly = false;
   const pendingRequests = new Map();
 
   const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -228,6 +229,55 @@
       .concat(malls.map(m => `<button class="chip ${m===selectedMall?'active':''}" data-mall="${esc(m)}">${esc(m)}</button>`)).join('');
   }
 
+  function isCancelled(o) {
+    return String(o['訂單狀態'] || '').includes('取消');
+  }
+
+  function phoneDigits(v) {
+    return String(v || '').replace(/\D/g, '');
+  }
+
+  function orderAnomalyReasons(o) {
+    if (isCancelled(o)) return [];
+    const reasons = [];
+    const paymentMethod = String(o['付款方式'] || '').trim();
+    const paymentStatus = String(o['付款狀態'] || '').trim();
+    const phone = phoneDigits(o['聯絡電話']);
+    if (paymentMethod === 'LINE Pay' && paymentStatus !== '已付款') reasons.push('LINE Pay 尚未完成付款');
+    if (!phone || phone.length < 9 || phone.length > 10 || phone[0] !== '0') reasons.push('聯絡電話格式異常');
+    if (!String(o['櫃位/品牌'] || '').trim()) reasons.push('缺少櫃位／品牌');
+    if (!(Number(o['總金額']) > 0)) reasons.push('訂單金額異常');
+    return reasons;
+  }
+
+  function renderOperationsOverview() {
+    const active = allRows.filter(o => !isCancelled(o));
+    const paid = active.filter(o => String(o['付款狀態'] || '') === '已付款').length;
+    const linePayUnpaid = active.filter(o => String(o['付款方式'] || '') === 'LINE Pay' && String(o['付款狀態'] || '') !== '已付款').length;
+    const anomalies = active.filter(o => orderAnomalyReasons(o).length);
+
+    $('opsOrders').textContent = active.length;
+    $('opsLunch').textContent = active.filter(o => o['餐期'] === '午餐').length;
+    $('opsDinner').textContent = active.filter(o => o['餐期'] === '晚餐').length;
+    $('opsPaid').textContent = paid;
+    $('opsUnpaid').textContent = linePayUnpaid;
+    $('opsCancelled').textContent = allRows.length - active.length;
+    $('opsAmount').textContent = money(active.reduce((sum,o) => sum + Number(o['總金額'] || 0), 0));
+    $('anomalyCount').textContent = anomalies.length;
+    $('anomalyToggleBtn').classList.toggle('active', anomalyOnly);
+    $('anomalyToggleBtn').classList.toggle('has-alert', anomalies.length > 0);
+
+    $('anomalyList').innerHTML = anomalies.length
+      ? anomalies.map(o => {
+          const reasons = orderAnomalyReasons(o);
+          return `<button class="anomaly-item" type="button" data-anomaly-order="${esc(o['訂單編號'])}">
+            <span><b>${esc(o['櫃位/品牌'] || '未填櫃位')}</b><small>${esc(o['訂單編號'])}</small></span>
+            <em>${reasons.map(esc).join('、')}</em>
+          </button>`;
+        }).join('')
+      : '<div class="anomaly-clear">✓ 目前沒有偵測到異常訂單</div>';
+  }
+
   function filteredRows() {
     const q = $('searchInput').value.trim().toLowerCase();
     const mode = $('modeFilter').value;
@@ -237,16 +287,24 @@
       if (mode === 'keyed' && !keyed) return false;
       if (selectedMall && o['百貨'] !== selectedMall) return false;
       if (selectedPeriod && o['餐期'] !== selectedPeriod) return false;
+      if (anomalyOnly && orderAnomalyReasons(o).length === 0) return false;
       if (q) {
         const hay = [o['櫃位/品牌'],o['聯絡人姓名'],o['聯絡電話'],o['訂單編號'],o['百貨'],o['館別'],o['樓層'],o['LINE 顯示名稱'],o['LINE User ID'],...(o.items||[]).map(i=>i['品項'])].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
+    }).sort((a,b) => {
+      const mall = String(a['百貨'] || '').localeCompare(String(b['百貨'] || ''), 'zh-Hant');
+      if (mall) return mall;
+      const floorA = Number(a['樓層排序'] || 999999), floorB = Number(b['樓層排序'] || 999999);
+      if (floorA !== floorB) return floorA - floorB;
+      return String(a['櫃位/品牌'] || '').localeCompare(String(b['櫃位/品牌'] || ''), 'zh-Hant');
     });
   }
 
   function render() {
     let rows = filteredRows();
+    renderOperationsOverview();
     $('pendingCount').textContent = allRows.filter(o => !boolTrue(o['POS已Key'])).length;
     $('keyedCount').textContent = allRows.filter(o => boolTrue(o['POS已Key'])).length;
     $('orderCount').textContent = rows.length;
@@ -284,7 +342,7 @@
         ${o['LINE User ID']?`<strong>${esc(o['LINE 顯示名稱']||'LINE 使用者')}</strong><small>ID：${esc(o['LINE User ID'])}</small>`:''}
       </div>
       <div class="invoice">發票：${esc(o['發票方式'])}${o['發票載具']?`<br>載具：<b>${esc(o['發票載具'])}</b>`:''}</div>
-      ${o['付款方式']==='LINE Pay'?`<div class="linepay-check"><div><span>LINE Pay 後三碼</span><strong>${esc(o['LINE Pay後三碼']||'未填')}</strong></div><div class="payment-state ${o['付款狀態']==='已付款'?'paid':''}">${esc(o['付款狀態']||'待核對')}</div>${o['付款狀態']==='已付款'?`<button class="payment-btn undo" data-payment="${esc(o['訂單編號'])}" data-payment-status="待核對">改回待核對</button>`:`<button class="payment-btn" data-payment="${esc(o['訂單編號'])}" data-payment-status="已付款">✓ 確認已付款</button>`}</div>`:''}
+      ${o['付款方式']==='LINE Pay'?`<div class="linepay-auto ${o['付款狀態']==='已付款'?'paid':'waiting'}"><div><span>LINE Pay 自動付款</span><strong>${o['付款狀態']==='已付款'?'✓ 已付款':'⚠ 尚未完成付款'}</strong></div><div class="linepay-meta">${o['LINE Pay交易編號']?`交易：${esc(String(o['LINE Pay交易編號']).slice(-8))}`:''}${o['LINE Pay付款時間']?`<br>時間：${esc(o['LINE Pay付款時間'])}`:''}</div></div>`:''}
       <div class="items">${items || '<div class="item">尚無餐點明細</div>'}</div>
       <div class="note">⚠ 備註：${esc(o['訂單備註']||'無')}</div>
       <div class="actions"><select data-status="${esc(o['訂單編號'])}" ${cancelled?'disabled':''}>${['新訂單','製作中','已完成','已送達','客人取消','店家取消'].map(s=>`<option ${s===o['訂單狀態']?'selected':''}>${s}</option>`).join('')}</select><button class="key-btn ${done?'cancel':''}" data-key="${esc(o['訂單編號'])}" data-value="${done?'false':'true'}" ${cancelled?'disabled':''}>${done?'取消已 Key':'✓ 完成 Key 單'}</button>${cancelled?'':`<button class="cancel-order-btn" data-cancel-order="${esc(o['訂單編號'])}">取消訂單</button>`}</div>
@@ -469,6 +527,29 @@
     }
     const b=e.target.closest('[data-key]');
     if(b) update(b.dataset.key,null,b.dataset.value==='true');
+  });
+
+  $('anomalyToggleBtn').addEventListener('click', () => {
+    anomalyOnly = !anomalyOnly;
+    $('anomalyPanel').hidden = !anomalyOnly;
+    $('modeFilter').value = anomalyOnly ? 'all' : 'pending';
+    focusIndex = 0;
+    render();
+  });
+  $('closeAnomalyBtn').addEventListener('click', () => {
+    anomalyOnly = false;
+    $('anomalyPanel').hidden = true;
+    render();
+  });
+  $('anomalyList').addEventListener('click', e => {
+    const b = e.target.closest('[data-anomaly-order]');
+    if (!b) return;
+    anomalyOnly = true;
+    $('modeFilter').value = 'all';
+    $('searchInput').value = b.dataset.anomalyOrder;
+    focusMode = false;
+    applyFocusMode();
+    document.querySelector('[data-order-card]')?.scrollIntoView({behavior:'smooth',block:'start'});
   });
 
   $('deliveryBtn').addEventListener('click',openDelivery);
