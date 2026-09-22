@@ -149,7 +149,7 @@ async function ensurePaymentHeaders() {
 
 async function findOrder(orderNo) {
   await ensurePaymentHeaders();
-  const rows = await getSheetValues(sheetRange('A:AZ'));
+  const rows = await getSheetValues(sheetRange('A:AK'));
   if (!rows.length) throw new Error('訂單主檔沒有資料');
   const headers = rows[0].map(x => String(x || '').trim());
   const orderCol = headers.indexOf('訂單編號');
@@ -163,6 +163,23 @@ async function findOrder(orderNo) {
     }
   }
   throw new Error('找不到訂單 ' + orderNo);
+}
+
+async function findOrderByTransactionId(transactionId) {
+  const rows = await getSheetValues(sheetRange('A:AK'));
+  if (!rows.length) throw new Error('訂單主檔沒有資料');
+  const headers = rows[0].map(x => String(x || '').trim());
+  const txCol = headers.indexOf('LINE Pay交易編號');
+  if (txCol < 0) throw new Error('訂單主檔缺少 LINE Pay交易編號欄位');
+
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][txCol] || '').trim() === String(transactionId).trim()) {
+      const obj = {};
+      headers.forEach((h, idx) => { if (h) obj[h] = rows[i][idx] ?? ''; });
+      return { rowNumber:i + 1, headers, values:rows[i], obj };
+    }
+  }
+  throw new Error('找不到 LINE Pay 交易 ' + transactionId);
 }
 
 async function updateOrderFields(order, fields) {
@@ -231,14 +248,19 @@ async function handleRequestPayment(req, res) {
 }
 
 async function handleConfirm(url, res) {
-  const orderNo = safeOrderNo(url.searchParams.get('orderId') || url.searchParams.get('orderNo'));
   const transactionId = String(url.searchParams.get('transactionId') || '').trim();
-
   if (!/^\d{1,30}$/.test(transactionId)) {
-    return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
+    return redirect(res, STOREFRONT_URL + '?linepay=error');
   }
 
-  const order = await findOrder(orderNo);
+  const suppliedOrderNo = String(url.searchParams.get('orderId') || url.searchParams.get('orderNo') || '').trim();
+  let order;
+  if (suppliedOrderNo) {
+    order = await findOrder(safeOrderNo(suppliedOrderNo));
+  } else {
+    order = await findOrderByTransactionId(transactionId);
+  }
+  const orderNo = safeOrderNo(order.obj['訂單編號']);
   if (String(order.obj['付款狀態'] || '').trim() === '已付款') {
     return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
   }
