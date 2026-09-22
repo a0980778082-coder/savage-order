@@ -18,6 +18,22 @@
     });
   }
 
+  async function requestLinePay(orderNo){
+    if(!cfg.LINEPAY_API_URL) throw new Error('尚未設定 LINE Pay 付款服務');
+    const r=await fetch(cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/request',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orderNo}),
+      cache:'no-store'
+    });
+    let data={};
+    try{data=await r.json()}catch(ignore){}
+    if(!r.ok || !data.ok){
+      throw new Error(data.returnMessage||data.error||('LINE Pay 連線失敗 ('+r.status+')'));
+    }
+    return data;
+  }
+
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
@@ -466,7 +482,7 @@
     });
     return rows;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
+  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:(document.querySelector('input[name="paymentMethod"]:checked').value==='LINE Pay'?'線上付款':document.querySelector('input[name="paymentMethod"]:checked').value),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -497,7 +513,7 @@
       }
     },30000);
   }
-  function handleSubmitResponse(event){
+  async function handleSubmitResponse(event){
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
@@ -510,10 +526,19 @@
       $('successOrderNo').textContent=d.orderNo;$('successDeliveryDate').textContent=displayDeliveryDate(els.deliveryDate.value);$('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
       const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
-      if(selectedPayment==='LINE Pay' && d.paymentUrl){
-        showSubmitOverlay('訂單已建立，正在前往 LINE Pay 付款…');
-        window.location.href=d.paymentUrl;
-        return;
+      if(selectedPayment==='LINE Pay'){
+        try{
+          showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
+          const pay=await requestLinePay(d.orderNo);
+          if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
+          window.location.href=pay.paymentUrl;
+          return;
+        }catch(err){
+          hideSubmitOverlay();
+          $('orderFailMessage').textContent='訂單已建立（'+d.orderNo+'），但 LINE Pay 啟動失敗：'+(err.message||String(err))+'。請勿重複下單。';
+          if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert($('orderFailMessage').textContent);
+          return;
+        }
       }
       $('successLinePayNotice').hidden=true;
       renderRewardProgress(d.rewardStatus);
