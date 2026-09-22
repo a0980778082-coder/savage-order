@@ -187,7 +187,8 @@ async function updateOrderFields(order, fields) {
     const idx = order.headers.indexOf(name);
     if (idx < 0) throw new Error('訂單主檔缺少欄位：' + name);
     const cell = colLetter(idx + 1) + order.rowNumber;
-    await putSheetValues(sheetRange(cell), [[value]]);
+    const storedValue = name === 'LINE Pay交易編號' ? ("'" + String(value)) : value;
+    await putSheetValues(sheetRange(cell), [[storedValue]]);
   }
 }
 
@@ -208,7 +209,7 @@ async function handleRequestPayment(req, res) {
   }
 
   const amount = safeAmount(order.obj['總金額']);
-  const confirmUrl = PUBLIC_BASE_URL + '/linepay/confirm';
+  const confirmUrl = PUBLIC_BASE_URL + '/linepay/confirm/' + encodeURIComponent(orderNo);
   const cancelUrl = PUBLIC_BASE_URL + '/linepay/cancel?orderNo=' + encodeURIComponent(orderNo);
 
   const result = await linePost('/v2/payments/request', {
@@ -307,7 +308,11 @@ async function handler(req, res) {
     if (req.method === 'POST' && url.pathname === '/linepay/request') {
       return await handleRequestPayment(req, res);
     }
-    if (req.method === 'GET' && url.pathname === '/linepay/confirm') {
+    if (req.method === 'GET' && (url.pathname === '/linepay/confirm' || url.pathname.startsWith('/linepay/confirm/'))) {
+      if (!url.searchParams.get('orderId') && !url.searchParams.get('orderNo')) {
+        const pathOrderNo = decodeURIComponent(url.pathname.slice('/linepay/confirm/'.length));
+        if (pathOrderNo) url.searchParams.set('orderNo', pathOrderNo);
+      }
       return await handleConfirm(url, res);
     }
     if (req.method === 'GET' && url.pathname === '/linepay/cancel') {
