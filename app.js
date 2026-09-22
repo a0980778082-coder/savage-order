@@ -18,6 +18,22 @@
     });
   }
 
+  async function requestLinePay(orderNo){
+    if(!cfg.LINEPAY_API_URL) throw new Error('尚未設定 LINE Pay 付款服務');
+    const r=await fetch(cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/request',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orderNo}),
+      cache:'no-store'
+    });
+    let data={};
+    try{data=await r.json()}catch(ignore){}
+    if(!r.ok || !data.ok){
+      throw new Error(data.returnMessage||data.error||('LINE Pay 連線失敗 ('+r.status+')'));
+    }
+    return data;
+  }
+
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
@@ -496,7 +512,10 @@
     });
     return rows;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
+  function buildPayload(){
+    const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
+    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
+  }
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -528,7 +547,7 @@
       }
     },30000);
   }
-  function handleSubmitResponse(event){
+  async function handleSubmitResponse(event){
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
@@ -540,6 +559,21 @@
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
       renderOrderSuccess(d,state.pendingOrder||buildPayload());
       $('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
+      const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
+      if(selectedPayment==='LINE Pay'){
+        try{
+          showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
+          const pay=await requestLinePay(d.orderNo);
+          if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
+          window.location.href=pay.paymentUrl;
+          return;
+        }catch(err){
+          hideSubmitOverlay();
+          $('orderFailMessage').textContent='訂單已建立（'+d.orderNo+'），但 LINE Pay 啟動失敗：'+(err.message||String(err))+'。請勿重複下單。';
+          if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert($('orderFailMessage').textContent);
+          return;
+        }
+      }
       renderRewardProgress(d.rewardStatus);
       showOrderSuccessView();
     }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
@@ -548,6 +582,7 @@
   function renderOrderSuccess(result,order){
     const items=Array.isArray(order.items)?order.items:[];
     const payment=order.paymentMethod||'—';
+    const isLinePay=payment==='LINE Pay'||payment==='線上付款';
     const backendStatus=String(result.paymentStatus||'').trim();
     let paymentStatus='';
     let paymentNote='';
@@ -555,7 +590,7 @@
     else if(payment==='現金')paymentStatus='送達時付款';
     else if(payment==='轉帳')paymentStatus='等待轉帳／人工核對';
     else paymentStatus='付款資料已送出，待人工核對';
-    if(payment==='LINE Pay'){
+    if(isLinePay){
       paymentNote=paymentStatus==='已付款'
         ?'LINE Pay 付款已完成。'
         :`LINE Pay 手機後三碼 ${esc(order.linePayLast3||'—')}，店家核對後會更新付款狀態。`;
@@ -567,7 +602,7 @@
     $('successTitle').textContent=result.edited?'訂單更新成功':'訂單已成立';
     $('successLead').textContent=result.edited?'修改內容已成功送達店家。':'店家已收到您的訂單，請放心。';
     $('successOrderNo').textContent=result.orderNo||'—';
-    $('successPaymentMethod').textContent=payment;
+    $('successPaymentMethod').textContent=isLinePay?'LINE Pay':payment;
     $('successPaymentStatus').textContent=paymentStatus;
     $('successPaymentNote').textContent=paymentNote;
     $('successDeliveryDate').textContent=displayDeliveryDate(order.deliveryDate);

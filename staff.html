@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
   <link rel="manifest" href="manifest.webmanifest?v=405">
-  <link rel="stylesheet" href="staff.css?v=405">
+  <link rel="stylesheet" href="staff.css?v=409">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -31,7 +31,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
+        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="settlementBtn" class="ghost settlement-btn">💰 每日結帳</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -41,6 +41,22 @@
           <div class="stat"><strong id="orderCount">0</strong><span>目前顯示</span></div>
           <div class="stat"><strong id="totalAmount">$0</strong><span>顯示金額</span></div>
         </div>
+
+        <section class="ops-overview" aria-label="今日營運總覽">
+          <div class="ops-title"><strong>今日營運總覽</strong><span>依目前送餐日期</span></div>
+          <div class="ops-grid">
+            <div class="ops-card"><strong id="opsOrders">0</strong><span>有效訂單</span></div>
+            <div class="ops-card"><strong id="opsLunch">0</strong><span>午餐</span></div>
+            <div class="ops-card"><strong id="opsDinner">0</strong><span>晚餐</span></div>
+            <div class="ops-card paid"><strong id="opsPaid">0</strong><span>已付款</span></div>
+            <div class="ops-card warn"><strong id="opsUnpaid">0</strong><span>待付款</span></div>
+            <div class="ops-card muted"><strong id="opsCancelled">0</strong><span>已取消</span></div>
+          </div>
+          <div class="ops-bottom">
+            <span>有效訂單金額 <strong id="opsAmount">$0</strong></span>
+            <button id="anomalyToggleBtn" class="anomaly-toggle" type="button">⚠ 異常訂單 <b id="anomalyCount">0</b></button>
+          </div>
+        </section>
 
         <div class="period-tabs" role="tablist">
           <button class="period active" data-period="">全部</button>
@@ -72,6 +88,10 @@
         </div>
       </section>
 
+      <section id="anomalyPanel" class="anomaly-panel" hidden>
+        <div class="anomaly-head"><div><strong>⚠ 異常訂單提醒</strong><span>付款、電話、櫃位或金額異常會集中顯示</span></div><button id="closeAnomalyBtn" class="ghost" type="button">關閉</button></div>
+        <div id="anomalyList" class="anomaly-list"></div>
+      </section>
       <div id="loading" class="loading" hidden><div class="spinner small"></div>讀取訂單中…</div>
       <div id="focusNav" class="focus-nav" hidden><button id="prevOrderBtn" class="ghost">上一張</button><strong id="focusPosition">0 / 0</strong><button id="nextOrderBtn" class="ghost">下一張</button></div>
       <section id="orderList" class="order-list"></section>
@@ -132,6 +152,33 @@
     </div>
   </dialog>
 
+  <dialog id="settlementDialog" class="settlement-dialog">
+    <div class="settlement-head">
+      <div><h2>💰 每日結帳報表</h2><p id="settlementDateLabel">依目前送餐日期統計</p></div>
+      <button id="closeSettlementBtn" class="ghost" type="button">關閉</button>
+    </div>
+    <div class="settlement-hero">
+      <span>有效訂單總額</span>
+      <strong id="settlementTotal">$0</strong>
+      <small><b id="settlementOrderCount">0</b> 筆有效訂單</small>
+    </div>
+    <div class="settlement-grid">
+      <div class="settlement-card cash"><span>💵 現金應收</span><strong id="settlementCash">$0</strong><small id="settlementCashCount">0 筆</small></div>
+      <div class="settlement-card linepay"><span>LINE Pay 已收</span><strong id="settlementLinePay">$0</strong><small id="settlementLinePayCount">0 筆</small></div>
+      <div class="settlement-card other"><span>其他付款</span><strong id="settlementOther">$0</strong><small id="settlementOtherCount">0 筆</small></div>
+      <div class="settlement-card warning"><span>⚠ LINE Pay 未完成</span><strong id="settlementUnpaid">$0</strong><small id="settlementUnpaidCount">0 筆</small></div>
+    </div>
+    <div class="settlement-breakdown">
+      <div><span>午餐</span><strong id="settlementLunch">$0</strong><small id="settlementLunchCount">0 筆</small></div>
+      <div><span>晚餐</span><strong id="settlementDinner">$0</strong><small id="settlementDinnerCount">0 筆</small></div>
+      <div><span>取消訂單</span><strong id="settlementCancelled">0 筆</strong><small id="settlementCancelledAmount">$0</small></div>
+    </div>
+    <div class="settlement-note">現金顯示「應收」；LINE Pay 僅把付款狀態為「已付款」計入已收金額。</div>
+    <div class="settlement-actions">
+      <button id="copySettlementBtn" class="primary big" type="button">複製結帳摘要</button>
+    </div>
+  </dialog>
+
   <dialog id="loginResultDialog" class="result-dialog">
     <div id="loginResultIcon" class="result-icon">✓</div>
     <h2 id="loginResultTitle">登入成功</h2>
@@ -140,6 +187,6 @@
   </dialog>
 
   <script src="config.js?v=405"></script>
-  <script src="staff.js?v=405"></script>
+  <script src="staff.js?v=409"></script>
 </body>
 </html>

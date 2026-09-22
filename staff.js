@@ -14,6 +14,7 @@
   let knownOrderNos = new Set();
   let swRegistration = null;
   let businessSettings = {};
+  let anomalyOnly = false;
   const pendingRequests = new Map();
 
   const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -228,6 +229,131 @@
       .concat(malls.map(m => `<button class="chip ${m===selectedMall?'active':''}" data-mall="${esc(m)}">${esc(m)}</button>`)).join('');
   }
 
+  function isCancelled(o) {
+    return String(o['訂單狀態'] || '').includes('取消');
+  }
+
+  function phoneDigits(v) {
+    return String(v || '').replace(/\D/g, '');
+  }
+
+  function orderAnomalyReasons(o) {
+    if (isCancelled(o)) return [];
+    const reasons = [];
+    const paymentMethod = String(o['付款方式'] || '').trim();
+    const paymentStatus = String(o['付款狀態'] || '').trim();
+    const phone = phoneDigits(o['聯絡電話']);
+    if (paymentMethod === 'LINE Pay' && paymentStatus !== '已付款') reasons.push('LINE Pay 尚未完成付款');
+    if (!phone || phone.length < 9 || phone.length > 10 || phone[0] !== '0') reasons.push('聯絡電話格式異常');
+    if (!String(o['櫃位/品牌'] || '').trim()) reasons.push('缺少櫃位／品牌');
+    if (!(Number(o['總金額']) > 0)) reasons.push('訂單金額異常');
+    return reasons;
+  }
+
+  function renderOperationsOverview() {
+    const active = allRows.filter(o => !isCancelled(o));
+    const paid = active.filter(o => String(o['付款狀態'] || '') === '已付款').length;
+    const linePayUnpaid = active.filter(o => String(o['付款方式'] || '') === 'LINE Pay' && String(o['付款狀態'] || '') !== '已付款').length;
+    const anomalies = active.filter(o => orderAnomalyReasons(o).length);
+
+    $('opsOrders').textContent = active.length;
+    $('opsLunch').textContent = active.filter(o => o['餐期'] === '午餐').length;
+    $('opsDinner').textContent = active.filter(o => o['餐期'] === '晚餐').length;
+    $('opsPaid').textContent = paid;
+    $('opsUnpaid').textContent = linePayUnpaid;
+    $('opsCancelled').textContent = allRows.length - active.length;
+    $('opsAmount').textContent = money(active.reduce((sum,o) => sum + Number(o['總金額'] || 0), 0));
+    $('anomalyCount').textContent = anomalies.length;
+    $('anomalyToggleBtn').classList.toggle('active', anomalyOnly);
+    $('anomalyToggleBtn').classList.toggle('has-alert', anomalies.length > 0);
+
+    $('anomalyList').innerHTML = anomalies.length
+      ? anomalies.map(o => {
+          const reasons = orderAnomalyReasons(o);
+          return `<button class="anomaly-item" type="button" data-anomaly-order="${esc(o['訂單編號'])}">
+            <span><b>${esc(o['櫃位/品牌'] || '未填櫃位')}</b><small>${esc(o['訂單編號'])}</small></span>
+            <em>${reasons.map(esc).join('、')}</em>
+          </button>`;
+        }).join('')
+      : '<div class="anomaly-clear">✓ 目前沒有偵測到異常訂單</div>';
+  }
+
+  function settlementSummary() {
+    const active = allRows.filter(o => !isCancelled(o));
+    const cancelled = allRows.filter(isCancelled);
+    const sum = rows => rows.reduce((s,o) => s + Number(o['總金額'] || 0), 0);
+    const cash = active.filter(o => String(o['付款方式'] || '').trim() === '現金');
+    const linePaid = active.filter(o => String(o['付款方式'] || '').trim() === 'LINE Pay' && String(o['付款狀態'] || '').trim() === '已付款');
+    const lineUnpaid = active.filter(o => String(o['付款方式'] || '').trim() === 'LINE Pay' && String(o['付款狀態'] || '').trim() !== '已付款');
+    const other = active.filter(o => {
+      const m = String(o['付款方式'] || '').trim();
+      return m && m !== '現金' && m !== 'LINE Pay';
+    });
+    const lunch = active.filter(o => o['餐期'] === '午餐');
+    const dinner = active.filter(o => o['餐期'] === '晚餐');
+    return {
+      active, cancelled, cash, linePaid, lineUnpaid, other, lunch, dinner,
+      total:sum(active), cashAmount:sum(cash), linePaidAmount:sum(linePaid),
+      lineUnpaidAmount:sum(lineUnpaid), otherAmount:sum(other),
+      lunchAmount:sum(lunch), dinnerAmount:sum(dinner), cancelledAmount:sum(cancelled)
+    };
+  }
+
+  function renderSettlement() {
+    const s = settlementSummary();
+    const date = selectedDeliveryDate || localDateValue(new Date());
+    $('settlementDateLabel').textContent = date + '｜依送餐日期統計';
+    $('settlementTotal').textContent = money(s.total);
+    $('settlementOrderCount').textContent = s.active.length;
+    $('settlementCash').textContent = money(s.cashAmount);
+    $('settlementCashCount').textContent = s.cash.length + ' 筆';
+    $('settlementLinePay').textContent = money(s.linePaidAmount);
+    $('settlementLinePayCount').textContent = s.linePaid.length + ' 筆';
+    $('settlementOther').textContent = money(s.otherAmount);
+    $('settlementOtherCount').textContent = s.other.length + ' 筆';
+    $('settlementUnpaid').textContent = money(s.lineUnpaidAmount);
+    $('settlementUnpaidCount').textContent = s.lineUnpaid.length + ' 筆';
+    $('settlementLunch').textContent = money(s.lunchAmount);
+    $('settlementLunchCount').textContent = s.lunch.length + ' 筆';
+    $('settlementDinner').textContent = money(s.dinnerAmount);
+    $('settlementDinnerCount').textContent = s.dinner.length + ' 筆';
+    $('settlementCancelled').textContent = s.cancelled.length + ' 筆';
+    $('settlementCancelledAmount').textContent = money(s.cancelledAmount);
+  }
+
+  function openSettlement() {
+    renderSettlement();
+    $('settlementDialog').showModal();
+  }
+
+  async function copySettlementSummary() {
+    const s = settlementSummary();
+    const date = selectedDeliveryDate || localDateValue(new Date());
+    const lines = [
+      '【小野人百貨點餐｜每日結帳】',
+      '日期：' + date,
+      '有效訂單：' + s.active.length + ' 筆',
+      '有效訂單總額：' + money(s.total),
+      '現金應收：' + money(s.cashAmount) + '（' + s.cash.length + ' 筆）',
+      'LINE Pay 已收：' + money(s.linePaidAmount) + '（' + s.linePaid.length + ' 筆）',
+      '其他付款：' + money(s.otherAmount) + '（' + s.other.length + ' 筆）',
+      'LINE Pay 未完成：' + money(s.lineUnpaidAmount) + '（' + s.lineUnpaid.length + ' 筆）',
+      '午餐：' + money(s.lunchAmount) + '（' + s.lunch.length + ' 筆）',
+      '晚餐：' + money(s.dinnerAmount) + '（' + s.dinner.length + ' 筆）',
+      '取消訂單：' + s.cancelled.length + ' 筆（' + money(s.cancelledAmount) + '）'
+    ];
+    const textValue = lines.join('\n');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(textValue);
+      else {
+        const ta=document.createElement('textarea');ta.value=textValue;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+      }
+      showToast('結帳摘要已複製','success');
+    } catch(e) {
+      showToast('無法自動複製，請手動截圖結帳報表','error');
+    }
+  }
+
   function filteredRows() {
     const q = $('searchInput').value.trim().toLowerCase();
     const mode = $('modeFilter').value;
@@ -237,16 +363,24 @@
       if (mode === 'keyed' && !keyed) return false;
       if (selectedMall && o['百貨'] !== selectedMall) return false;
       if (selectedPeriod && o['餐期'] !== selectedPeriod) return false;
+      if (anomalyOnly && orderAnomalyReasons(o).length === 0) return false;
       if (q) {
         const hay = [o['櫃位/品牌'],o['聯絡人姓名'],o['聯絡電話'],o['訂單編號'],o['百貨'],o['館別'],o['樓層'],o['LINE 顯示名稱'],o['LINE User ID'],...(o.items||[]).map(i=>i['品項'])].join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
+    }).sort((a,b) => {
+      const mall = String(a['百貨'] || '').localeCompare(String(b['百貨'] || ''), 'zh-Hant');
+      if (mall) return mall;
+      const floorA = Number(a['樓層排序'] || 999999), floorB = Number(b['樓層排序'] || 999999);
+      if (floorA !== floorB) return floorA - floorB;
+      return String(a['櫃位/品牌'] || '').localeCompare(String(b['櫃位/品牌'] || ''), 'zh-Hant');
     });
   }
 
   function render() {
     let rows = filteredRows();
+    renderOperationsOverview();
     $('pendingCount').textContent = allRows.filter(o => !boolTrue(o['POS已Key'])).length;
     $('keyedCount').textContent = allRows.filter(o => boolTrue(o['POS已Key'])).length;
     $('orderCount').textContent = rows.length;
@@ -284,7 +418,7 @@
         ${o['LINE User ID']?`<strong>${esc(o['LINE 顯示名稱']||'LINE 使用者')}</strong><small>ID：${esc(o['LINE User ID'])}</small>`:''}
       </div>
       <div class="invoice">發票：${esc(o['發票方式'])}${o['發票載具']?`<br>載具：<b>${esc(o['發票載具'])}</b>`:''}</div>
-      ${o['付款方式']==='LINE Pay'?`<div class="linepay-check"><div><span>LINE Pay 後三碼</span><strong>${esc(o['LINE Pay後三碼']||'未填')}</strong></div><div class="payment-state ${o['付款狀態']==='已付款'?'paid':''}">${esc(o['付款狀態']||'待核對')}</div>${o['付款狀態']==='已付款'?`<button class="payment-btn undo" data-payment="${esc(o['訂單編號'])}" data-payment-status="待核對">改回待核對</button>`:`<button class="payment-btn" data-payment="${esc(o['訂單編號'])}" data-payment-status="已付款">✓ 確認已付款</button>`}</div>`:''}
+      ${o['付款方式']==='LINE Pay'?`<div class="linepay-auto ${o['付款狀態']==='已付款'?'paid':'waiting'}"><div><span>LINE Pay 自動付款</span><strong>${o['付款狀態']==='已付款'?'✓ 已付款':'⚠ 尚未完成付款'}</strong></div><div class="linepay-meta">${o['LINE Pay交易編號']?`交易：${esc(String(o['LINE Pay交易編號']).slice(-8))}`:''}${o['LINE Pay付款時間']?`<br>時間：${esc(o['LINE Pay付款時間'])}`:''}</div></div>`:''}
       <div class="items">${items || '<div class="item">尚無餐點明細</div>'}</div>
       <div class="note">⚠ 備註：${esc(o['訂單備註']||'無')}</div>
       <div class="actions"><select data-status="${esc(o['訂單編號'])}" ${cancelled?'disabled':''}>${['新訂單','製作中','已完成','已送達','客人取消','店家取消'].map(s=>`<option ${s===o['訂單狀態']?'selected':''}>${s}</option>`).join('')}</select><button class="key-btn ${done?'cancel':''}" data-key="${esc(o['訂單編號'])}" data-value="${done?'false':'true'}" ${cancelled?'disabled':''}>${done?'取消已 Key':'✓ 完成 Key 單'}</button>${cancelled?'':`<button class="cancel-order-btn" data-cancel-order="${esc(o['訂單編號'])}">取消訂單</button>`}</div>
@@ -470,6 +604,33 @@
     const b=e.target.closest('[data-key]');
     if(b) update(b.dataset.key,null,b.dataset.value==='true');
   });
+
+  $('anomalyToggleBtn').addEventListener('click', () => {
+    anomalyOnly = !anomalyOnly;
+    $('anomalyPanel').hidden = !anomalyOnly;
+    $('modeFilter').value = anomalyOnly ? 'all' : 'pending';
+    focusIndex = 0;
+    render();
+  });
+  $('closeAnomalyBtn').addEventListener('click', () => {
+    anomalyOnly = false;
+    $('anomalyPanel').hidden = true;
+    render();
+  });
+  $('anomalyList').addEventListener('click', e => {
+    const b = e.target.closest('[data-anomaly-order]');
+    if (!b) return;
+    anomalyOnly = true;
+    $('modeFilter').value = 'all';
+    $('searchInput').value = b.dataset.anomalyOrder;
+    focusMode = false;
+    applyFocusMode();
+    document.querySelector('[data-order-card]')?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+
+  $('settlementBtn').addEventListener('click',openSettlement);
+  $('closeSettlementBtn').addEventListener('click',()=>$('settlementDialog').close());
+  $('copySettlementBtn').addEventListener('click',copySettlementSummary);
 
   $('deliveryBtn').addEventListener('click',openDelivery);
   $('closeDeliveryBtn').addEventListener('click',()=>$('deliveryDialog').close());
