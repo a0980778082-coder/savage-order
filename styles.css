@@ -287,3 +287,6 @@ body.focus-mode .cancel-order-btn{
     font-size:14px;
   }
 }
+/* V4.0.6 LINE Pay 線上付款 */
+.linepay-direct-info{margin-top:12px;padding:14px;border-radius:14px;background:#eefaf2;border:1px solid #ccebd6;line-height:1.65}
+.linepay-direct-info b{color:#157347}.linepay-direct-info p{margin:6px 0 0;color:var(--muted)}
