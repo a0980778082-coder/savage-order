@@ -7,6 +7,7 @@ const CHANNEL_ID = process.env.LINEPAY_CHANNEL_ID || '';
 const CHANNEL_SECRET = process.env.LINEPAY_CHANNEL_SECRET || '';
 const LINEPAY_ENV = (process.env.LINEPAY_ENV || 'PRODUCTION').toUpperCase();
 const STOREFRONT_URL = process.env.STOREFRONT_URL || 'https://a0980778082-coder.github.io/savage-order/';
+const STOREFRONT_ORIGIN = new URL(STOREFRONT_URL).origin;
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1kzWWfa7ES04Ly4oyNdcwsTsOtSjPC01VF5ovHMSSwcE';
 const ORDER_SHEET = process.env.ORDER_SHEET || '訂單主檔';
@@ -20,7 +21,7 @@ function json(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': STOREFRONT_URL.replace(/\/$/, ''),
+    'Access-Control-Allow-Origin': STOREFRONT_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
   });
