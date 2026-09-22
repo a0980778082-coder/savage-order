@@ -343,10 +343,6 @@
     const isLinePay=v==='LINE Pay';
     els.linePayBox.hidden=!isLinePay;
     els.transferBox.hidden=v!=='轉帳';
-    if(!isLinePay){
-      els.linePayLast3.value='';
-      els.linePayAcknowledged.checked=false;
-    }
   }
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
