@@ -181,7 +181,8 @@ async function handleRequestPayment(req, res) {
   const orderNo = safeOrderNo(b.orderNo);
   const order = await findOrder(orderNo);
 
-  if (String(order.obj['付款方式'] || '').trim() !== 'LINE Pay') {
+  const paymentMethod = String(order.obj['付款方式'] || '').trim();
+  if (paymentMethod !== 'LINE Pay' && paymentMethod !== '線上付款') {
     return json(res, 409, { ok:false, error:'此訂單不是 LINE Pay 付款' });
   }
 
@@ -221,6 +222,7 @@ async function handleRequestPayment(req, res) {
   }
 
   await updateOrderFields(order, {
+    '付款方式':'LINE Pay',
     '付款狀態':'未付款',
     'LINE Pay交易編號':transactionId
   });
