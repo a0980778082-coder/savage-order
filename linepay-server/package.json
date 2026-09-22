@@ -1,0 +1,13 @@
+{
+  "name": "savage-linepay-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LINE Pay payment gateway for SAVAGE MEAL LAB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
