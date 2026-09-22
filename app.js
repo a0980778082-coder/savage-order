@@ -18,9 +18,40 @@
     });
   }
 
+  async function requestLinePay(orderNo){
+    if(!cfg.LINEPAY_API_URL) throw new Error('尚未設定 LINE Pay 付款服務');
+    const r=await fetch(cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/request',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orderNo}),
+      cache:'no-store'
+    });
+    let data={};
+    try{data=await r.json()}catch(ignore){}
+    if(!r.ok || !data.ok){
+      throw new Error(data.returnMessage||data.error||('LINE Pay 連線失敗 ('+r.status+')'));
+    }
+    return data;
+  }
+
+  function handleLinePayReturn(){
+    const url=new URL(location.href);
+    const status=url.searchParams.get('linepay');
+    const orderNo=url.searchParams.get('orderNo');
+    if(!status)return;
+    setTimeout(()=>{
+      if(status==='success') toast('LINE Pay 付款成功'+(orderNo?'｜訂單 '+orderNo:''));
+      else if(status==='cancel') toast('LINE Pay 付款已取消'+(orderNo?'｜訂單 '+orderNo:''));
+      else toast('LINE Pay 付款未完成，請稍後再試');
+    },400);
+    url.searchParams.delete('linepay');
+    url.searchParams.delete('orderNo');
+    history.replaceState({},'',url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
+  }
+
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
-    bindEvents();
+    bindEvents();handleLinePayReturn();
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
@@ -338,7 +369,9 @@
     $('bankAccount').textContent=s['轉帳帳號']||'—';
     $('bankHolder').textContent=s['轉帳戶名']||'—';
 
-    // LINE Pay 使用線上直連付款。\n  }\n  function renderPaymentChoice(){
+    // LINE Pay 使用線上直連付款。
+  }
+  function renderPaymentChoice(){
     const v=document.querySelector('input[name="paymentMethod"]:checked').value;
     const isLinePay=v==='LINE Pay';
     els.linePayBox.hidden=!isLinePay;
@@ -409,7 +442,7 @@
       }
     },30000);
   }
-  function handleSubmitResponse(event){
+  async function handleSubmitResponse(event){
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
@@ -419,7 +452,24 @@
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
       $('successOrderNo').textContent=d.orderNo;$('successDeliveryDate').textContent=displayDeliveryDate(els.deliveryDate.value);$('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
       $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
-      const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;\n      if(selectedPayment==='LINE Pay' && d.paymentUrl){\n        showSubmitOverlay('訂單已建立，正在前往 LINE Pay 付款…');\n        window.location.href=d.paymentUrl;\n        return;\n      }\n      renderRewardProgress(d.rewardStatus);\n      $('successDialog').showModal();\n    }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
+      const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
+      if(selectedPayment==='LINE Pay'){
+        try{
+          showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
+          const pay=await requestLinePay(d.orderNo);
+          if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
+          window.location.href=pay.paymentUrl;
+          return;
+        }catch(err){
+          hideSubmitOverlay();
+          $('orderFailMessage').textContent='訂單已建立（'+d.orderNo+'），但 LINE Pay 啟動失敗：'+(err.message||String(err))+'。請勿重複下單。';
+          if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert($('orderFailMessage').textContent);
+          return;
+        }
+      }
+      renderRewardProgress(d.rewardStatus);
+      $('successDialog').showModal();
+    }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
   }
 
 
