@@ -2,9 +2,9 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [] };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [] };
   const $ = (id) => document.getElementById(id);
-  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
+  const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), linePayLast3:$('linePayLast3'), linePayAcknowledged:$('linePayAcknowledged'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
@@ -27,7 +27,6 @@
       state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};
       setupDeliveryDate();renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();renderBusinessNotice();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
-      handleLinePayReturn();
     }catch(err){showFatal(err.message||String(err));}
   }
 
@@ -423,12 +422,38 @@
     $('bankAccount').textContent=s['轉帳帳號']||'—';
     $('bankHolder').textContent=s['轉帳戶名']||'—';
 
+    const qr=$('linePayQr');
+    const missing=$('linePayMissing');
+    const localQr='./linepay-qr.png?v=373';
+    const configured=String(s.LINE_PAY_QR_URL||'').trim();
+
+    qr.hidden=false;
+    missing.hidden=true;
+    qr.onerror=()=>{
+      if(!qr.src.includes('linepay-qr.png')){
+        qr.src=localQr;
+        return;
+      }
+      qr.hidden=true;
+      missing.hidden=false;
+    };
+    qr.onload=()=>{
+      qr.hidden=false;
+      missing.hidden=true;
+    };
+
+    // 有設定網址時先嘗試；失敗就自動退回專案內的 QR 圖片。
+    qr.src=configured||localQr;
   }
   function renderPaymentChoice(){
     const v=document.querySelector('input[name="paymentMethod"]:checked').value;
     const isLinePay=v==='LINE Pay';
     els.linePayBox.hidden=!isLinePay;
     els.transferBox.hidden=v!=='轉帳';
+    if(!isLinePay){
+      els.linePayLast3.value='';
+      els.linePayAcknowledged.checked=false;
+    }
   }
   function renderInvoiceChoice(){const v=document.querySelector('input[name="invoiceType"]:checked').value;const show=v!=='紙本發票';els.invoiceExtraField.hidden=!show;els.invoiceExtraLabel.textContent=v==='手機條碼載具'?'手機條碼載具':'公司統一編號';els.invoiceCarrier.placeholder=v==='手機條碼載具'?'例如：/ABC1234':'請輸入8碼統編'}
 
@@ -438,6 +463,11 @@
     for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
     if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
     const payment=document.querySelector('input[name="paymentMethod"]:checked').value;
+    if(payment==='LINE Pay'){
+      const last3=els.linePayLast3.value.trim();
+      if(!/^\d{3}$/.test(last3)){toast('請輸入 LINE Pay 付款手機後三碼');els.linePayLast3.focus();return false}
+      if(!els.linePayAcknowledged.checked){toast('請勾選「付款後會到社群傳送後三碼」');els.linePayAcknowledged.focus();return false}
+    }
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
     const addonStatus=addonRuleStatus();
@@ -466,7 +496,7 @@
     });
     return rows;
   }
-  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
+  function buildPayload(){return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:document.querySelector('input[name="paymentMethod"]:checked').value,linePayLast3:els.linePayLast3.value.trim(),invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()}}
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
     return 'req-'+Date.now()+'-'+Math.random().toString(36).slice(2);
@@ -488,7 +518,8 @@
     if(!state.requestId)state.requestId=makeRequestId();
     state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
     showSubmitOverlay('訂單送出中，請勿關閉頁面或重複點擊');
-    $('submitForm').action=cfg.API_URL;$('orderActionInput').value=state.editingOrderNo?'updateCustomerOrder':'submitOrder';$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
+    state.pendingOrder=buildPayload();
+    $('submitForm').action=cfg.API_URL;$('orderActionInput').value=state.editingOrderNo?'updateCustomerOrder':'submitOrder';$('payloadInput').value=JSON.stringify(state.pendingOrder);$('submitForm').submit();
     clearTimeout(state.submitTimer);
     state.submitTimer=setTimeout(()=>{
       if(state.submitting){
@@ -507,18 +538,59 @@
     if(d.ok){
       saveDeliveryProfile();
       state.lastOrder={orderNo:d.orderNo,phone:$('contactPhone').value.trim(),rewardStatus:d.rewardStatus||null};state.requestId=null;
-      $('successOrderNo').textContent=d.orderNo;$('successDeliveryDate').textContent=displayDeliveryDate(els.deliveryDate.value);$('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
-      $('successTotal').textContent=Number(d.total).toLocaleString('zh-TW');
-      const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
-      if(selectedPayment==='LINE Pay' && d.paymentUrl){
-        showSubmitOverlay('訂單已建立，正在前往 LINE Pay 付款…');
-        window.location.href=d.paymentUrl;
-        return;
-      }
-      $('successLinePayNotice').hidden=true;
+      renderOrderSuccess(d,state.pendingOrder||buildPayload());
+      $('editOrderBtn').hidden=!!d.edited;if(d.edited){state.editingOrderNo='';state.originalPhone='';$('editBanner').hidden=true;$('submitBtn').textContent='送出訂單';}
       renderRewardProgress(d.rewardStatus);
-      $('successDialog').showModal();
+      showOrderSuccessView();
     }else { const msg=d.error||'訂單送出失敗，請確認資料與網路連線後再試一次'; $('orderFailMessage').textContent=msg; if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert(msg); }
+  }
+
+  function renderOrderSuccess(result,order){
+    const items=Array.isArray(order.items)?order.items:[];
+    const payment=order.paymentMethod||'—';
+    const backendStatus=String(result.paymentStatus||'').trim();
+    let paymentStatus='';
+    let paymentNote='';
+    if(backendStatus==='已付款')paymentStatus='已付款';
+    else if(payment==='現金')paymentStatus='送達時付款';
+    else if(payment==='轉帳')paymentStatus='等待轉帳／人工核對';
+    else paymentStatus='付款資料已送出，待人工核對';
+    if(payment==='LINE Pay'){
+      paymentNote=paymentStatus==='已付款'
+        ?'LINE Pay 付款已完成。'
+        :`LINE Pay 手機後三碼 ${esc(order.linePayLast3||'—')}，店家核對後會更新付款狀態。`;
+    }else if(payment==='轉帳'){
+      paymentNote='完成轉帳後請保留明細，店家核對後會更新付款狀態。';
+    }else{
+      paymentNote='餐點送達櫃位時再以現金付款。';
+    }
+    $('successTitle').textContent=result.edited?'訂單更新成功':'訂單已成立';
+    $('successLead').textContent=result.edited?'修改內容已成功送達店家。':'店家已收到您的訂單，請放心。';
+    $('successOrderNo').textContent=result.orderNo||'—';
+    $('successPaymentMethod').textContent=payment;
+    $('successPaymentStatus').textContent=paymentStatus;
+    $('successPaymentNote').textContent=paymentNote;
+    $('successDeliveryDate').textContent=displayDeliveryDate(order.deliveryDate);
+    $('successMealPeriod').textContent=order.mealPeriod||'—';
+    $('successLocation').textContent=[order.mall,order.building,order.floor].filter(Boolean).join('｜')||'—';
+    $('successCounter').textContent=order.counterName||'—';
+    $('successContact').textContent=[order.contactName,order.contactPhone].filter(Boolean).join('｜')||'—';
+    $('successTotal').textContent=Number(result.total||items.reduce((sum,item)=>sum+Number(item.price||0)*Number(item.qty||0),0)).toLocaleString('zh-TW');
+    $('successItems').innerHTML=items.length?items.map(item=>{
+      const qty=Number(item.qty||0),subtotal=Number(item.price||0)*qty;
+      return `<li><div><strong>${esc(item.name||'餐點')}</strong>${item.riceOption?`<small>${esc(item.riceOption)}</small>`:''}</div><div><span>${qty} 份</span><strong>$${subtotal.toLocaleString('zh-TW')}</strong></div></li>`;
+    }).join(''):'<li class="success-empty-item">餐點明細已記錄於訂單中</li>';
+  }
+
+  function showOrderSuccessView(){
+    document.body.classList.add('order-success-mode');
+    $('orderSuccessView').hidden=false;
+    window.scrollTo({top:0,behavior:'auto'});
+  }
+
+  function hideOrderSuccessView(){
+    $('orderSuccessView').hidden=true;
+    document.body.classList.remove('order-success-mode');
   }
 
 
@@ -613,7 +685,7 @@
 
   function startEditOrder(){
     if(!state.lastOrder)return;state.editingOrderNo=state.lastOrder.orderNo;state.originalPhone=state.lastOrder.phone;
-    $('successDialog').close();$('editOrderNo').textContent=state.editingOrderNo;$('editBanner').hidden=false;$('submitBtn').textContent='更新原訂單';
+    hideOrderSuccessView();$('editOrderNo').textContent=state.editingOrderNo;$('editBanner').hidden=false;$('submitBtn').textContent='更新原訂單';
     window.scrollTo({top:0,behavior:'smooth'});toast('可修改餐點與資料，完成後按「更新原訂單」');
   }
 
@@ -634,7 +706,6 @@
 
   function openWheel(){
     if(!state.lastOrder)return;
-    $('successDialog').close();
     els.prizeWheel.style.transform='rotate(0deg)';
     els.spinResult.hidden=true;
     $('startSpinBtn').hidden=false;
@@ -696,20 +767,5 @@
   function categoryEmoji(name){if(name.includes('限量'))return'🔥';if(name.includes('百元'))return'🍱';if(name.includes('雞'))return'🐔';if(name.includes('豚'))return'🐷';if(name.includes('牛'))return'🐂';if(name.includes('魚'))return'🐟';if(name.includes('時蔬'))return'🥦';if(name.includes('湯'))return'🥣';if(name.includes('飲'))return'🥤';if(name.includes('加購'))return'➕';return'🍽️'}
   function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
   const escAttr=esc;function cssEsc(s){return window.CSS&&CSS.escape?CSS.escape(s):String(s).replace(/(["\\])/g,'\\$1')}
-  function handleLinePayReturn(){
-    const q=new URLSearchParams(location.search);
-    const status=q.get('linepay');
-    if(!status)return;
-    const orderNo=q.get('orderNo')||'';
-    setTimeout(()=>{
-      if(status==='success') toast('LINE Pay 付款成功'+(orderNo?'｜訂單 '+orderNo:''));
-      else if(status==='cancel') toast('LINE Pay 付款已取消，訂單尚未付款');
-      else toast('LINE Pay 付款確認失敗，請聯絡店家協助確認');
-    },350);
-    q.delete('linepay');q.delete('orderNo');q.delete('message');
-    const clean=location.pathname+(q.toString()?'?'+q.toString():'')+location.hash;
-    history.replaceState({},'',clean);
-  }
-
   init();
 })();

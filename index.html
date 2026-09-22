@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=406">
+  <link rel="stylesheet" href="styles.css?v=20260923">
   <link rel="manifest" href="./manifest.webmanifest?v=401">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -146,11 +146,27 @@
       </fieldset>
 
       <div id="linePayBox" class="payment-box linepay-box" hidden>
-        <strong>LINE Pay 線上付款</strong>
-        <div class="linepay-direct-info">
-          <b>送出訂單後會直接前往 LINE Pay</b>
-          <p>請在 LINE Pay 完成付款；付款成功後會自動回到小野人百貨點餐頁，系統會自動更新為「已付款」。</p>
+        <strong>請掃描 LINE Pay QR Code 完成付款</strong>
+        <div class="linepay-warning">
+          <b>⚠️ LINE Pay 付款提醒</b>
+          <ol>
+            <li>請先掃描下方 QR Code 並完成付款。</li>
+            <li>付款完成後，請將「付款手機號碼後三碼」傳送至社群，通知管理員核對。</li>
+            <li>管理員核對前，訂單付款狀態會顯示為「待核對」。</li>
+          </ol>
+          <p>例如：付款手機號碼為 0980-778-082，請傳送 <strong>082</strong>。</p>
         </div>
+        <img id="linePayQr" src="./linepay-qr.png?v=380" alt="LINE Pay QR Code">
+        <p id="linePayMissing">尚未設定 LINE Pay QR 圖片。</p>
+        <label id="linePayLast3Field" class="field linepay-last3-field">
+          <span>付款手機後三碼 <em>必填</em></span>
+          <input id="linePayLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}" placeholder="例如：082" autocomplete="off">
+          <small>請輸入實際用來 LINE Pay 付款的手機號碼後三碼，並將同樣三碼傳送至社群。</small>
+        </label>
+        <label class="linepay-confirm-check">
+          <input id="linePayAcknowledged" type="checkbox">
+          <span>我知道付款後仍需到社群傳送手機後三碼，通知管理員核對。</span>
+        </label>
       </div>
       <div id="transferBox" class="payment-box" hidden>
         <strong>轉帳資訊</strong>
@@ -216,24 +232,53 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <dialog id="successDialog" class="success-dialog">
-    <div class="success-icon">✓</div>
-    <h2>訂單送出成功</h2>
-    <p>訂單編號：<strong id="successOrderNo"></strong></p>
-    <p class="success-date">送餐日期：<strong id="successDeliveryDate"></strong></p>
-    <p>總金額：<strong>$<span id="successTotal"></span></strong></p>
-    <div id="successLinePayNotice" class="success-linepay-notice" hidden>
-      <strong>LINE Pay 付款完成</strong>
-      <p>系統已自動確認付款，不需要再提供手機後三碼。</p>
-    </div>
+  <section id="orderSuccessView" class="order-success-view" hidden aria-live="polite">
+    <div class="order-success-shell">
+      <div class="success-icon">✓</div>
+      <p class="success-eyebrow">訂單送出完成</p>
+      <h1 id="successTitle">訂單已成立</h1>
+      <p id="successLead" class="success-lead">店家已收到您的訂單，請放心。</p>
+
+      <div class="success-order-number">
+        <span>訂單編號</span>
+        <strong id="successOrderNo"></strong>
+        <small>請截圖保留此頁，以便查詢訂單</small>
+      </div>
+
+      <div class="success-payment-card">
+        <div><span>付款方式</span><strong id="successPaymentMethod">—</strong></div>
+        <div><span>付款狀態</span><strong id="successPaymentStatus">—</strong></div>
+        <p id="successPaymentNote"></p>
+      </div>
+
+      <section class="success-detail-card">
+        <h2>餐點明細</h2>
+        <ul id="successItems" class="success-items"></ul>
+        <div class="success-total"><span>訂單總金額</span><strong>$<span id="successTotal"></span></strong></div>
+      </section>
+
+      <section class="success-detail-card success-delivery-card">
+        <h2>送餐資訊</h2>
+        <dl>
+          <div><dt>送餐日期</dt><dd id="successDeliveryDate"></dd></div>
+          <div><dt>餐期</dt><dd id="successMealPeriod"></dd></div>
+          <div><dt>送餐地點</dt><dd id="successLocation"></dd></div>
+          <div><dt>櫃位／品牌</dt><dd id="successCounter"></dd></div>
+          <div><dt>聯絡人</dt><dd id="successContact"></dd></div>
+        </dl>
+      </section>
+
     <div id="rewardProgress" class="reward-progress" hidden>
       <strong id="rewardProgressTitle"></strong>
       <p id="rewardProgressText"></p>
       <button id="spinBtn" class="spin-button" type="button" hidden>🎡 立即轉好運輪盤</button>
     </div>
-    <button id="editOrderBtn" class="spin-button" type="button">✏️ 修改剛才訂單</button>
-    <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
-  </dialog>
+      <div class="success-actions">
+        <button id="editOrderBtn" class="success-secondary-button" type="button">✏️ 修改剛才訂單</button>
+        <button id="newOrderBtn" class="primary-button" type="button">再下一張訂單</button>
+      </div>
+    </div>
+  </section>
 
   <dialog id="orderResultDialog" class="success-dialog order-fail-dialog">
     <div class="success-icon fail-icon">!</div>
@@ -281,6 +326,6 @@
 
 <script src="config.js?v=403"></script>
 <script src="pwa.js?v=404"></script>
-<script src="app.js?v=406"></script>
+<script src="app.js?v=20260923"></script>
 </body>
 </html>

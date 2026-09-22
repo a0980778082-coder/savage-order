@@ -51,6 +51,46 @@ body.is-submitting{overflow:hidden}.success-dialog[open]{animation:successPop .2
 .success-linepay-notice p{margin:5px 0 0}
 .success-linepay-notice b{font-size:22px;color:#b25a00}
 
+/* V40.6 下單完成滿版確認頁 */
+.order-success-view{min-height:100dvh;padding:28px 14px calc(34px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#dff2f5 0,#f2f7f8 260px)}
+.order-success-view[hidden]{display:none!important}
+.order-success-shell{width:min(680px,100%);margin:0 auto;text-align:center}
+.order-success-mode{padding-bottom:0;overflow:auto}
+.order-success-mode>.site-marquee,.order-success-mode>.hero,.order-success-mode>.page-shell,.order-success-mode>.bottom-bar{display:none!important}
+.order-success-view .success-icon{width:76px;height:76px;font-size:40px;background:#fff;color:#1f7a54;box-shadow:0 12px 32px rgba(34,105,84,.16)}
+.success-eyebrow{margin:14px 0 3px;color:#286c76;font-weight:900;letter-spacing:.12em}
+.order-success-view h1{margin:0;font-size:clamp(30px,8vw,42px);color:#17343b}
+.success-lead{margin:7px 0 20px;color:#526f76;font-weight:700}
+.success-order-number{display:grid;gap:5px;margin:0 auto 14px;padding:18px;border:2px solid #83c7d2;border-radius:20px;background:#fff;box-shadow:0 12px 32px rgba(35,91,101,.09)}
+.success-order-number span{color:#6a7d82;font-size:13px;font-weight:800}
+.success-order-number strong{font-size:clamp(25px,7vw,34px);color:#1f626d;letter-spacing:.04em;word-break:break-all}
+.success-order-number small{color:#9a6419;font-weight:700}
+.success-payment-card,.success-detail-card{margin-top:14px;border:1px solid #d6e5e8;border-radius:20px;background:#fff;padding:18px;text-align:left;box-shadow:0 10px 28px rgba(31,76,84,.07)}
+.success-payment-card{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.success-payment-card>div{display:grid;gap:4px;padding:12px;border-radius:14px;background:#f0f8f9}
+.success-payment-card span{font-size:12px;color:#6a7d82;font-weight:800}
+.success-payment-card strong{font-size:16px;color:#175d68}
+.success-payment-card p{grid-column:1/-1;margin:0;padding:11px 12px;border-radius:12px;background:#fff7e8;color:#795615;font-size:13px;line-height:1.65;font-weight:700}
+.success-detail-card h2{margin:0 0 12px;font-size:19px}
+.success-items{list-style:none;margin:0;padding:0;border-top:1px solid #e3ecee}
+.success-items li{display:flex;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid #e3ecee}
+.success-items li>div{display:grid;gap:3px;text-align:left}
+.success-items li>div:last-child{text-align:right;white-space:nowrap}
+.success-items small,.success-items span{color:#6a7d82;font-size:13px}
+.success-empty-item{color:#6a7d82;text-align:center!important;display:block!important}
+.success-total{display:flex;align-items:center;justify-content:space-between;margin-top:15px}
+.success-total span{font-weight:800}.success-total strong{font-size:27px;color:#175d68}
+.success-delivery-card dl{margin:0}
+.success-delivery-card dl div{display:grid;grid-template-columns:92px 1fr;gap:12px;padding:10px 0;border-top:1px solid #e5edef}
+.success-delivery-card dl div:first-child{border-top:0}
+.success-delivery-card dt{color:#6a7d82;font-size:13px;font-weight:700}
+.success-delivery-card dd{margin:0;text-align:right;font-weight:800;word-break:break-word}
+.order-success-view .reward-progress{text-align:left;background:#fff;border:1px solid #d6e5e8;box-shadow:0 10px 28px rgba(31,76,84,.07)}
+.success-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.success-actions button{min-height:52px;width:100%}
+.success-secondary-button{border:1px solid #286c76;border-radius:14px;background:#fff;color:#286c76;font:inherit;font-weight:800;padding:13px 16px;cursor:pointer}
+@media(max-width:480px){.order-success-view{padding-top:22px}.success-payment-card{grid-template-columns:1fr}.success-payment-card p{grid-column:1}.success-actions{grid-template-columns:1fr}.success-delivery-card dl div{grid-template-columns:82px 1fr}}
+
 
 /* v37.2 營業狀態與公告 */
 .site-marquee{
@@ -287,6 +327,3 @@ body.focus-mode .cancel-order-btn{
     font-size:14px;
   }
 }
-/* V4.0.6 LINE Pay 線上付款 */
-.linepay-direct-info{margin-top:12px;padding:14px;border-radius:14px;background:#eefaf2;border:1px solid #ccebd6;line-height:1.65}
-.linepay-direct-info b{color:#157347}.linepay-direct-info p{margin:6px 0 0;color:var(--muted)}
