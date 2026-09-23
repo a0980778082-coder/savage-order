@@ -2,7 +2,7 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [] };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [], handledOrderNo: '' };
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
@@ -35,9 +35,34 @@
     return data;
   }
 
+  function handleLinePayReturn(){
+    const url=new URL(location.href),status=url.searchParams.get('linepay');
+    if(!status)return;
+    const orderNo=url.searchParams.get('orderNo')||'',code=url.searchParams.get('code')||'';
+    let pending=null;
+    try{pending=JSON.parse(sessionStorage.getItem('savage_linepay_pending')||'null')}catch(ignore){}
+    sessionStorage.removeItem('savage_linepay_pending');
+    url.searchParams.delete('linepay');url.searchParams.delete('orderNo');url.searchParams.delete('code');
+    history.replaceState({},'',url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
+    setTimeout(()=>{
+      if(status==='success'){
+        const order=pending&&pending.order||{};
+        renderOrderSuccess({orderNo:orderNo||(pending&&pending.orderNo)||'',total:pending&&pending.total||0,paymentStatus:'已付款'},order);
+        $('successPaymentStatus').textContent='已付款';
+        $('successPaymentNote').textContent='LINE Pay 付款已完成。';
+        $('editOrderBtn').hidden=true;showOrderSuccessView();
+      }else{
+        const label=status==='cancel'?'LINE Pay 付款已取消':'LINE Pay 付款未完成';
+        $('orderFailMessage').textContent=label+(orderNo?'（訂單 '+orderNo+'）':'')+'，本筆目前不會列為已付款'+(code?'（錯誤碼 '+code+'）':'')+'。';
+        if(typeof $('orderResultDialog').showModal==='function')$('orderResultDialog').showModal();else alert($('orderFailMessage').textContent);
+      }
+    },300);
+  }
+
   async function init(){
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
+    handleLinePayReturn();
     renderPaymentChoice();
     const slowNotice=setTimeout(()=>{els.menuLoading.innerHTML='<span class="spinner"></span>正在取得最新菜單，首次連線可能需要稍等…';},6000);
     try{
@@ -513,6 +538,7 @@
     const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n\n確認後送出訂單？`;
     if(!window.confirm(confirmText))return;
     if(!state.requestId)state.requestId=makeRequestId();
+    state.handledOrderNo='';
     state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
     showSubmitOverlay('訂單送出中，請勿關閉頁面或重複點擊');
     state.pendingOrder=buildPayload();
@@ -531,6 +557,10 @@
     if(d.action==='spinReward'){handleSpinResponse(d);return}
     if(d.action==='customerHistory'){handleHistoryResponse(d);return}
     if(d.action==='customerCancelOrder'){handleCustomerCancelResponse(d);return}
+    // Some iPhone iframe flows deliver the same successful order message twice.
+    // Process it once so LINE Pay is never launched by two competing requests.
+    if(d.ok&&d.orderNo&&state.handledOrderNo===d.orderNo)return;
+    if(d.ok&&d.orderNo)state.handledOrderNo=d.orderNo;
     clearTimeout(state.submitTimer);state.submitting=false;els.submitBtn.textContent='送出訂單';hideSubmitOverlay();updateSummary();
     if(d.ok){
       saveDeliveryProfile();
@@ -543,6 +573,7 @@
           showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
           const pay=await requestLinePay(d.orderNo);
           if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
+          try{sessionStorage.setItem('savage_linepay_pending',JSON.stringify({orderNo:d.orderNo,total:d.total,order:state.pendingOrder}))}catch(ignore){}
           window.location.href=pay.paymentUrl;
           return;
         }catch(err){
