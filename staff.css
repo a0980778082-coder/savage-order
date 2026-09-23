@@ -355,3 +355,117 @@ body.focus-mode .order-card{
     min-height:58px !important;
   }
 }
+
+
+/* V41 百貨員工 Key 單版面整理 */
+.mobile-header{gap:12px}
+.floor-title{position:static!important;top:auto!important}
+.ops-overview{margin:10px 0 12px}
+body.focus-mode .ops-overview{display:none!important}
+
+@media(max-width:640px){
+  .shell{padding-left:8px;padding-right:8px;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+  .mobile-header{display:block;padding:10px 2px 6px}
+  .mobile-header h1{font-size:24px;margin:1px 0 8px}
+
+  /* 管理功能改成單列橫向滑動，避免 7 顆按鈕把 Key 單往下推 */
+  .header-actions{
+    display:flex!important;
+    flex-direction:row!important;
+    overflow-x:auto;
+    gap:7px;
+    padding:2px 0 6px;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch
+  }
+  .header-actions::-webkit-scrollbar{display:none}
+  .header-actions .ghost{
+    flex:0 0 auto;
+    min-height:40px;
+    padding:8px 11px;
+    font-size:13px;
+    white-space:nowrap
+  }
+
+  /* 手機不再把整個篩選區固定在畫面上，避免遮住訂單 */
+  .sticky-tools{
+    position:static!important;
+    top:auto!important;
+    padding:4px 0 8px;
+    backdrop-filter:none;
+    background:transparent
+  }
+
+  .stats{grid-template-columns:repeat(4,1fr);gap:5px}
+  .stat{padding:8px 2px;border-radius:12px}
+  .stat strong{font-size:18px}
+  .stat span{font-size:10px}
+
+  .period-tabs{margin-top:7px}
+  .period{min-height:40px;font-size:14px}
+  .mall-chips{padding-top:7px}
+  .tool-row{margin-top:4px}
+  .search-box input{min-height:44px;font-size:15px}
+  .refresh{font-size:22px}
+
+  .delivery-date-tools{
+    display:grid!important;
+    grid-template-columns:1fr 1fr 1fr!important;
+    gap:6px!important;
+    margin:8px 0!important
+  }
+  .delivery-date-tools label{
+    grid-column:1/-1!important;
+    margin:0
+  }
+  .delivery-date-tools input{min-height:42px}
+  #prevDateBtn,#nextDateBtn{display:none}
+  #todayDateBtn,#tomorrowDateBtn{min-height:40px}
+  #tomorrowDateBtn{grid-column:2/4}
+
+  .mode-row{margin-top:4px}
+  .mode-row select{min-height:40px}
+
+  /* 營運總覽改成非黏住、緊湊卡片 */
+  .ops-overview{margin:8px 0 10px;padding:10px;border-radius:15px}
+  .ops-title{margin-bottom:7px}
+  .ops-grid{grid-template-columns:repeat(3,1fr);gap:5px}
+  .ops-card{padding:7px 4px;border-radius:10px}
+  .ops-card strong{font-size:17px}
+  .ops-card span{font-size:10px}
+  .ops-bottom{margin-top:7px;padding-top:7px}
+
+  .order-list{margin-top:8px;gap:10px}
+  .floor-title{font-size:16px;padding:9px 11px;border-radius:12px}
+  .order-card{padding:14px 12px;border-radius:17px;border-left-width:7px}
+  .delivery-badge,.location-badge{font-size:12px;padding:5px 8px;margin-bottom:5px}
+  .counter{font-size:24px}
+  .meta{font-size:12px}
+  .amount{font-size:23px}
+  .payment{font-size:13px}
+  .contact,.contact a{font-size:17px}
+  .contact{padding:10px 11px}
+  .line-identity{padding:8px 10px;margin:8px 0}
+  .invoice{font-size:14px}
+  .item{padding:13px 12px}
+  .item-name{font-size:20px}
+  .custom{font-size:15px}
+  .qty{font-size:26px}
+  .note{font-size:17px;padding:11px 12px}
+
+  .actions{grid-template-columns:1fr 1fr!important;gap:7px!important;margin-top:12px!important;padding-top:11px!important}
+  .actions select{grid-column:1/-1!important;min-height:48px!important;font-size:15px!important}
+  .key-btn,.cancel-order-btn{min-height:58px!important;font-size:17px!important}
+  body.focus-mode .key-btn{min-height:62px!important;font-size:19px!important}
+
+  /* 專注模式只留真正 Key 單需要的內容 */
+  body.focus-mode .mobile-header .header-actions,
+  body.focus-mode .stats,
+  body.focus-mode .period-tabs,
+  body.focus-mode .mall-chips,
+  body.focus-mode .tool-row,
+  body.focus-mode .mode-row,
+  body.focus-mode .ops-overview{display:none!important}
+  body.focus-mode .delivery-date-tools{margin:2px 0 7px!important}
+  body.focus-mode .focus-nav{position:sticky;top:0;z-index:30}
+}
