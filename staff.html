@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>小野人員工 POS Key 單</title>
   <link rel="manifest" href="manifest.webmanifest?v=405">
-  <link rel="stylesheet" href="staff.css?v=410">
+  <link rel="stylesheet" href="staff.css?v=411">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -42,22 +42,6 @@
           <div class="stat"><strong id="totalAmount">$0</strong><span>顯示金額</span></div>
         </div>
 
-        <section class="ops-overview" aria-label="今日營運總覽">
-          <div class="ops-title"><strong>今日營運總覽</strong><span>依目前送餐日期</span></div>
-          <div class="ops-grid">
-            <div class="ops-card"><strong id="opsOrders">0</strong><span>有效訂單</span></div>
-            <div class="ops-card"><strong id="opsLunch">0</strong><span>午餐</span></div>
-            <div class="ops-card"><strong id="opsDinner">0</strong><span>晚餐</span></div>
-            <div class="ops-card paid"><strong id="opsPaid">0</strong><span>已付款</span></div>
-            <div class="ops-card warn"><strong id="opsUnpaid">0</strong><span>待付款</span></div>
-            <div class="ops-card muted"><strong id="opsCancelled">0</strong><span>已取消</span></div>
-          </div>
-          <div class="ops-bottom">
-            <span>有效訂單金額 <strong id="opsAmount">$0</strong></span>
-            <button id="anomalyToggleBtn" class="anomaly-toggle" type="button">⚠ 異常訂單 <b id="anomalyCount">0</b></button>
-          </div>
-        </section>
-
         <div class="period-tabs" role="tablist">
           <button class="period active" data-period="">全部</button>
           <button class="period" data-period="午餐">午餐</button>
@@ -87,6 +71,22 @@
           <span id="lastUpdated" class="updated">尚未更新</span>
         </div>
       </section>
+
+      <section class="ops-overview" aria-label="今日營運總覽">
+          <div class="ops-title"><strong>今日營運總覽</strong><span>依目前送餐日期</span></div>
+          <div class="ops-grid">
+            <div class="ops-card"><strong id="opsOrders">0</strong><span>有效訂單</span></div>
+            <div class="ops-card"><strong id="opsLunch">0</strong><span>午餐</span></div>
+            <div class="ops-card"><strong id="opsDinner">0</strong><span>晚餐</span></div>
+            <div class="ops-card paid"><strong id="opsPaid">0</strong><span>已付款</span></div>
+            <div class="ops-card warn"><strong id="opsUnpaid">0</strong><span>待付款</span></div>
+            <div class="ops-card muted"><strong id="opsCancelled">0</strong><span>已取消</span></div>
+          </div>
+          <div class="ops-bottom">
+            <span>有效訂單金額 <strong id="opsAmount">$0</strong></span>
+            <button id="anomalyToggleBtn" class="anomaly-toggle" type="button">⚠ 異常訂單 <b id="anomalyCount">0</b></button>
+          </div>
+        </section>
 
       <section id="anomalyPanel" class="anomaly-panel" hidden>
         <div class="anomaly-head"><div><strong>⚠ 異常訂單提醒</strong><span>付款、電話、櫃位或金額異常會集中顯示</span></div><button id="closeAnomalyBtn" class="ghost" type="button">關閉</button></div>
