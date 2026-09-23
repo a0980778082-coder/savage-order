@@ -210,3 +210,148 @@ body.focus-mode .note{
 .settlement-note{margin-top:11px;padding:10px 12px;border-radius:12px;background:#f1f5f6;color:#5f7378;font-size:12px;line-height:1.55;font-weight:750}.settlement-actions .big{margin-top:12px}
 @media(max-width:640px){.settlement-dialog{padding:15px}.settlement-grid{grid-template-columns:1fr 1fr}.settlement-breakdown{grid-template-columns:1fr}.settlement-hero strong{font-size:34px}}
 @media(max-width:390px){.settlement-grid{grid-template-columns:1fr}}
+
+
+/* V41 員工 Key 單版面整理：避免總覽/篩選區與樓層標題互相遮住 */
+.sticky-tools{
+  position:static !important;
+  top:auto !important;
+  z-index:auto !important;
+  backdrop-filter:none !important;
+  background:transparent !important;
+  padding-bottom:6px !important;
+}
+.floor-title{
+  position:static !important;
+  top:auto !important;
+  z-index:auto !important;
+  margin:2px 0 8px;
+}
+.order-list{margin-top:8px}
+.order-card{overflow:hidden}
+.order-top{min-width:0}
+.order-top>div:first-child{min-width:0}
+.counter{overflow-wrap:anywhere}
+.meta{overflow-wrap:anywhere}
+.amount{flex:0 0 auto}
+
+body.focus-mode .ops-overview,
+body.focus-mode .stats,
+body.focus-mode .period-tabs,
+body.focus-mode .mall-chips,
+body.focus-mode .tool-row,
+body.focus-mode .mode-row{
+  display:none !important;
+}
+body.focus-mode .delivery-date-tools{
+  margin:4px 0 8px !important;
+}
+body.focus-mode .focus-nav{
+  position:sticky;
+  top:4px;
+  z-index:25;
+}
+body.focus-mode .order-card{
+  margin-bottom:8px;
+}
+
+@media(max-width:640px){
+  .mobile-header{
+    display:block;
+    padding:10px 2px 8px;
+  }
+  .mobile-header h1{
+    font-size:24px;
+    margin:2px 0 10px;
+  }
+  .header-actions{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+  .header-actions .ghost{
+    min-height:44px;
+    white-space:normal;
+    line-height:1.2;
+  }
+  .stats{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+  }
+  .stat{
+    padding:8px 2px;
+    border-radius:12px;
+  }
+  .stat strong{font-size:18px}
+  .stat span{font-size:10px}
+  .ops-overview{
+    margin-top:8px;
+    padding:10px;
+    border-radius:15px;
+  }
+  .ops-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .period-tabs{margin-top:8px}
+  .mall-chips{padding-top:7px}
+  .delivery-date-tools{
+    margin:8px 0 !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:6px !important;
+  }
+  .delivery-date-tools label{grid-column:1/-1}
+  .delivery-date-tools button{min-height:40px}
+  .mode-row{margin-top:6px}
+  .floor-title{
+    font-size:16px;
+    padding:9px 11px;
+    border-radius:12px;
+  }
+  .order-card{
+    padding:14px 12px !important;
+    border-left-width:6px !important;
+    border-radius:16px !important;
+  }
+  .order-top{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:start;
+    gap:8px;
+  }
+  .counter{font-size:24px !important}
+  .meta{font-size:12px !important}
+  .amount{font-size:24px !important}
+  .payment{font-size:13px !important}
+  .contact,
+  .contact a{
+    font-size:18px !important;
+  }
+  .line-identity{
+    padding:8px 10px;
+    margin:8px 0;
+  }
+  .line-identity small{
+    display:none;
+  }
+  .invoice{font-size:15px !important}
+  .item{padding:13px 12px !important}
+  .item-name{font-size:20px !important}
+  .custom{font-size:16px !important}
+  .qty{font-size:26px !important;min-width:50px}
+  .note{
+    font-size:17px !important;
+    padding:12px !important;
+  }
+  .linepay-auto{
+    padding:10px 12px;
+    margin-top:9px;
+  }
+  .actions{
+    margin-top:12px !important;
+    padding-top:10px !important;
+  }
+  .actions select{
+    min-height:48px !important;
+  }
+  .key-btn,
+  .cancel-order-btn{
+    min-height:58px !important;
+  }
+}
