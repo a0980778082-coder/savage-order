@@ -1,7 +1,7 @@
 {
   "name": "小野人員工 POS Key 單",
   "short_name": "小野人 POS",
-  "start_url": "./staff.html?v=370",
+  "start_url": "./staff.html?v=375",
   "scope": "./",
   "display": "standalone",
   "background_color": "#eef3f4",
