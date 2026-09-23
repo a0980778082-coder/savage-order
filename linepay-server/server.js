@@ -169,7 +169,7 @@ async function putSheetValues(range, values) {
 async function ensurePaymentHeaders() {
   const rows = await getSheetValues(sheetRange('1:1'));
   const headers = rows[0] || [];
-  const needed = ['LINE Pay交易編號','LINE Pay付款時間','LINE Pay錯誤訊息'];
+  const needed = ['LINE Pay交易編號','LINE Pay付款時間'];
   for (const name of needed) {
     if (headers.indexOf(name) === -1) {
       headers.push(name);
@@ -275,8 +275,7 @@ async function handleRequestPayment(req, res) {
   await updateOrderFields(order, {
     '付款方式':'LINE Pay',
     '付款狀態':'未付款',
-    'LINE Pay交易編號':transactionId,
-    'LINE Pay錯誤訊息':''
+    'LINE Pay交易編號':transactionId
   });
 
   return json(res, 200, { ok:true, orderNo, transactionId, paymentUrl });
@@ -302,7 +301,6 @@ async function handleConfirm(url, res) {
 
   const storedTx = String(order.obj['LINE Pay交易編號'] || '').trim();
   if (storedTx && storedTx !== transactionId) {
-    await updateOrderFields(order, { 'LINE Pay錯誤訊息':'交易編號不一致' });
     return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
   }
 
@@ -317,8 +315,7 @@ async function handleConfirm(url, res) {
     await updateOrderFields(order, {
       '付款狀態':'已付款',
       'LINE Pay交易編號':transactionId,
-      'LINE Pay付款時間':paidAt,
-      'LINE Pay錯誤訊息':''
+      'LINE Pay付款時間':paidAt
     });
     return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
   }
@@ -340,8 +337,7 @@ async function handleConfirm(url, res) {
       await updateOrderFields(order, {
         '付款狀態':'已付款',
         'LINE Pay交易編號':transactionId,
-        'LINE Pay付款時間':paidAt,
-        'LINE Pay錯誤訊息':''
+        'LINE Pay付款時間':paidAt
       });
       return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
     }
@@ -349,8 +345,7 @@ async function handleConfirm(url, res) {
     console.error('LINE Pay reconciliation failed:', lookupError.message);
   }
 
-  const errorText = String(result.returnCode || 'UNKNOWN') + '｜' + String(result.returnMessage || '付款確認失敗');
-  await updateOrderFields(order, { '付款狀態':'未付款', 'LINE Pay錯誤訊息':errorText.slice(0, 300) });
+  await updateOrderFields(order, { '付款狀態':'未付款' });
   return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo) + '&code=' + encodeURIComponent(result.returnCode || 'UNKNOWN'));
 }
 
@@ -363,7 +358,7 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
-        version:'2026-09-24-reconcile-2',
+        version:'2026-09-24-reconcile-3',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
