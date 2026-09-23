@@ -8,7 +8,7 @@
   let selectedPeriod = '';
   let inventoryRows = [];
   let selectedDeliveryDate = '';
-  let focusMode = localStorage.getItem('savage_focus_mode') !== 'false';
+  let focusMode = localStorage.getItem('savage_focus_mode_v2') === 'true';
   let focusIndex = 0;
   let initialOrdersLoaded = false;
   let knownOrderNos = new Set();
@@ -62,7 +62,7 @@
   function applyFocusMode(){
     document.body.classList.toggle('focus-mode',focusMode);
     $('focusModeBtn').textContent=focusMode?'一般模式':'專注模式';
-    localStorage.setItem('savage_focus_mode',String(focusMode));
+    localStorage.setItem('savage_focus_mode_v2',String(focusMode));
     focusIndex=0;render();
   }
 
