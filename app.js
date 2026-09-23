@@ -40,8 +40,8 @@
     if(!status)return;
     const orderNo=url.searchParams.get('orderNo')||'',code=url.searchParams.get('code')||'';
     let pending=null;
-    try{pending=JSON.parse(sessionStorage.getItem('savage_linepay_pending')||'null')}catch(ignore){}
-    sessionStorage.removeItem('savage_linepay_pending');
+    try{pending=JSON.parse(localStorage.getItem('savage_linepay_pending')||'null')}catch(ignore){}
+    localStorage.removeItem('savage_linepay_pending');
     url.searchParams.delete('linepay');url.searchParams.delete('orderNo');url.searchParams.delete('code');
     history.replaceState({},'',url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
     setTimeout(()=>{
@@ -573,7 +573,7 @@
           showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
           const pay=await requestLinePay(d.orderNo);
           if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
-          try{sessionStorage.setItem('savage_linepay_pending',JSON.stringify({orderNo:d.orderNo,total:d.total,order:state.pendingOrder}))}catch(ignore){}
+          try{localStorage.setItem('savage_linepay_pending',JSON.stringify({orderNo:d.orderNo,total:d.total,order:state.pendingOrder,savedAt:Date.now()}))}catch(ignore){}
           window.location.href=pay.paymentUrl;
           return;
         }catch(err){
