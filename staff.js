@@ -8,7 +8,7 @@
   let selectedPeriod = '';
   let inventoryRows = [];
   let selectedDeliveryDate = '';
-  let focusMode = localStorage.getItem('savage_focus_mode') !== 'false';
+  let focusMode = localStorage.getItem('savage_focus_mode_v2') === 'true';
   let focusIndex = 0;
   let initialOrdersLoaded = false;
   let knownOrderNos = new Set();
@@ -24,7 +24,7 @@
 
   async function registerServiceWorker(){
     if(!('serviceWorker' in navigator)) return null;
-    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=374');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
+    try{swRegistration=await navigator.serviceWorker.register('./sw.js?v=375');return swRegistration;}catch(e){console.warn('Service worker registration failed',e);return null;}
   }
   function updateNotifyButton(){
     const b=$('notifyBtn'); if(!b)return;
@@ -61,7 +61,7 @@
   function applyFocusMode(){
     document.body.classList.toggle('focus-mode',focusMode);
     $('focusModeBtn').textContent=focusMode?'一般模式':'專注模式';
-    localStorage.setItem('savage_focus_mode',String(focusMode));
+    localStorage.setItem('savage_focus_mode_v2',String(focusMode));
     focusIndex=0;render();
   }
 
