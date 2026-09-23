@@ -10,8 +10,9 @@
     return new Promise((resolve,reject) => {
       const cb='__savage_cb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
       const script=document.createElement('script');
-      const timeout=setTimeout(()=>cleanup(new Error('連線逾時，請稍後重試')),15000);
-      function cleanup(err,data){clearTimeout(timeout);delete window[cb];script.remove();err?reject(err):resolve(data)}
+      const timeout=setTimeout(()=>cleanup(new Error('菜單服務回應較慢，請重新載入再試')),action==='publicData'?45000:15000);
+      let settled=false;
+      function cleanup(err,data){if(settled)return;settled=true;clearTimeout(timeout);script.remove();if(err){window[cb]=()=>{delete window[cb]};setTimeout(()=>{delete window[cb]},120000);}else{delete window[cb]}err?reject(err):resolve(data)}
       window[cb]=(data)=>cleanup(null,data);
       const q=new URLSearchParams({action,callback:cb,...params});
       script.src=cfg.API_URL+'?'+q.toString();script.onerror=()=>cleanup(new Error('無法連線到訂單系統'));document.head.appendChild(script);
@@ -38,13 +39,14 @@
     if(!cfg.API_URL){showFatal('尚未設定 Apps Script API 網址');return}
     bindEvents();
     renderPaymentChoice();
+    const slowNotice=setTimeout(()=>{els.menuLoading.innerHTML='<span class="spinner"></span>正在取得最新菜單，首次連線可能需要稍等…';},6000);
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
       state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};
       setupDeliveryDate();renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();renderBusinessNotice();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
-    }catch(err){showFatal(err.message||String(err));}
+    }catch(err){showFatal(err.message||String(err));}finally{clearTimeout(slowNotice);}
   }
 
 

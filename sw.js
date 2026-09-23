@@ -1,12 +1,12 @@
-const CACHE = 'savage-order-v404';
+const CACHE = 'savage-order-v412';
 
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=3811',
-  './app.js?v=3811',
-  './pwa.js?v=404',
-  './config.js?v=403',
+  './styles.css?v=411',
+  './app.js?v=412',
+  './pwa.js?v=412',
+  './config.js?v=407',
   './manifest.webmanifest?v=401'
 ];
 
@@ -68,52 +68,23 @@ self.addEventListener('activate', event => {
    網頁快取
 ========================================================= */
 
+// Only versioned local static assets use cache-first. Orders, payment calls,
+// navigation and live menu responses always use the network.
 self.addEventListener('fetch', event => {
-
-  if(event.request.method !== 'GET'){
-    return;
-  }
-
-  event.respondWith(
-
-    fetch(event.request)
-
-      .then(response => {
-
-        if(
-          response &&
-          response.ok
-        ){
-
-          const copy =
-            response.clone();
-
-          caches
-            .open(CACHE)
-            .then(cache =>
-              cache.put(
-                event.request,
-                copy
-              )
-            )
-            .catch(() => {});
-
-        }
-
-        return response;
-
-      })
-
-      .catch(() =>
-        caches.match(
-          event.request
-        )
-      )
-
-  );
-
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== self.location.origin ||
+      !url.searchParams.has('v') ||
+      !/\.(?:js|css|webmanifest)$/.test(url.pathname)) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  })());
 });
-
 
 /* =========================================================
    接收 Cloudflare Web Push

@@ -87,7 +87,7 @@ async function registerSW(){
   try{
 
     return await navigator.serviceWorker.register(
-      './sw.js?v=401',
+      './sw.js?v=412',
       {
         scope:'./'
       }
@@ -742,7 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentPhone();
 
         if(
-          Notification.permission === 'granted' &&
+          window.Notification && Notification.permission === 'granted' &&
           /^09\d{8}$/.test(phone)
         ){
 
@@ -762,7 +762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentPhone();
 
         if(
-          Notification.permission === 'granted' &&
+          window.Notification && Notification.permission === 'granted' &&
           /^09\d{8}$/.test(phone)
         ){
 
@@ -783,7 +783,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if(
     window.Notification &&
-    Notification.permission === 'granted'
+    window.Notification && Notification.permission === 'granted'
   ){
 
     const phone =
@@ -846,3 +846,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
 });
+})();
