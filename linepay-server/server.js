@@ -51,6 +51,28 @@ function lineHeaders() {
   };
 }
 
+// Quote unsafe integer tokens before JSON.parse can round them. Matching whole
+// JSON strings first keeps numbers embedded in messages and URLs untouched.
+// This also works on the Node 20 runtime used by Cloud Run.
+function parseLinePayResponse(text) {
+  const lossless = text.replace(
+    /"(?:\\[\s\S]|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+    token => /^-?\d+$/.test(token) && !Number.isSafeInteger(Number(token))
+      ? JSON.stringify(token)
+      : token
+  );
+  return JSON.parse(lossless);
+}
+
+function paymentTransactionId(value) {
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+    throw new Error('LINE Pay transaction ID lost precision');
+  }
+  const id = String(value ?? '');
+  if (!/^[1-9]\d{0,29}$/.test(id)) throw new Error('Invalid LINE Pay transaction ID');
+  return id;
+}
+
 async function linePost(path, body) {
   const r = await fetch(API_BASE + path, {
     method: 'POST',
@@ -60,7 +82,7 @@ async function linePost(path, body) {
   });
   const text = await r.text();
   let data;
-  try { data = JSON.parse(text); }
+  try { data = parseLinePayResponse(text); }
   catch { data = { returnCode: String(r.status), returnMessage: text }; }
   return data;
 }
@@ -232,7 +254,7 @@ async function handleRequestPayment(req, res) {
     });
   }
 
-  const transactionId = String(result.info && result.info.transactionId || '');
+  const transactionId = paymentTransactionId(result.info && result.info.transactionId);
   const paymentUrl = result.info && result.info.paymentUrl && result.info.paymentUrl.web;
   if (!transactionId || !paymentUrl) {
     await updateOrderFields(order, { '付款狀態':'未付款' });
@@ -301,6 +323,7 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
+        version:'2026-09-23-tx-precision-1',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
