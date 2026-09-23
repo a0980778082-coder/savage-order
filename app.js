@@ -2,7 +2,7 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '' };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', handledOrderNo: '' };
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
@@ -38,14 +38,28 @@
     const url=new URL(location.href);
     const status=url.searchParams.get('linepay');
     const orderNo=url.searchParams.get('orderNo');
+    const code=url.searchParams.get('code');
     if(!status)return;
+    let pending=null;
+    try{pending=JSON.parse(sessionStorage.getItem('savage_linepay_pending')||'null')}catch(ignore){}
+    sessionStorage.removeItem('savage_linepay_pending');
     setTimeout(()=>{
-      if(status==='success') toast('LINE Pay 付款成功'+(orderNo?'｜訂單 '+orderNo:''));
-      else if(status==='cancel') toast('LINE Pay 付款已取消'+(orderNo?'｜訂單 '+orderNo:''));
-      else toast('LINE Pay 付款未完成，請稍後再試');
+      if(status==='success'){
+        $('successOrderNo').textContent=orderNo||(pending&&pending.orderNo)||'';
+        $('successDeliveryDate').textContent=pending&&pending.deliveryDate?displayDeliveryDate(pending.deliveryDate):'請依訂單資料';
+        $('successTotal').textContent=Number(pending&&pending.total||0).toLocaleString('zh-TW');
+        $('rewardProgress').hidden=true;$('editOrderBtn').hidden=true;
+        $('successDialog').querySelector('h2').textContent='LINE Pay 付款成功';
+        $('successDialog').showModal();
+      }else{
+        const label=status==='cancel'?'付款已取消':'付款未完成';
+        $('orderFailMessage').textContent=label+(orderNo?'（訂單 '+orderNo+'）':'')+'。本筆目前不會列為已付款，請聯絡店家協助確認'+(code?'（錯誤碼 '+code+'）':'')+'。';
+        $('orderResultDialog').showModal();
+      }
     },400);
     url.searchParams.delete('linepay');
     url.searchParams.delete('orderNo');
+    url.searchParams.delete('code');
     history.replaceState({},'',url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
   }
 
@@ -431,6 +445,7 @@
     const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n\n確認後送出訂單？`;
     if(!window.confirm(confirmText))return;
     if(!state.requestId)state.requestId=makeRequestId();
+    state.handledOrderNo='';
     state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
     showSubmitOverlay('訂單送出中，請勿關閉頁面或重複點擊');
     $('submitForm').action=cfg.API_URL;$('orderActionInput').value=state.editingOrderNo?'updateCustomerOrder':'submitOrder';$('payloadInput').value=JSON.stringify(buildPayload());$('submitForm').submit();
@@ -446,6 +461,11 @@
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
     if(d.action==='spinReward'){handleSpinResponse(d);return}
+    // Apps Script/iframe 在部分 iPhone 環境可能送出相同成功訊息兩次。
+    // LINE Pay 只能啟動一次，否則其中一個 fetch 會在轉頁時被中止，
+    // 畫面就會先誤報「Load failed」再跳到付款頁。
+    if(d.ok&&d.orderNo&&state.handledOrderNo===d.orderNo)return;
+    if(d.ok&&d.orderNo)state.handledOrderNo=d.orderNo;
     clearTimeout(state.submitTimer);state.submitting=false;els.submitBtn.textContent='送出訂單';hideSubmitOverlay();updateSummary();
     if(d.ok){
       saveDeliveryProfile();
@@ -458,6 +478,7 @@
           showSubmitOverlay('訂單已建立，正在連接 LINE Pay…');
           const pay=await requestLinePay(d.orderNo);
           if(!pay || !pay.paymentUrl) throw new Error('LINE Pay 未回傳付款網址');
+          try{sessionStorage.setItem('savage_linepay_pending',JSON.stringify({orderNo:d.orderNo,total:d.total,deliveryDate:els.deliveryDate.value}))}catch(ignore){}
           window.location.href=pay.paymentUrl;
           return;
         }catch(err){
