@@ -87,6 +87,17 @@ async function linePost(path, body) {
   return data;
 }
 
+async function lineGet(path) {
+  const r = await fetch(API_BASE + path, {
+    method: 'GET',
+    headers: lineHeaders(),
+    signal: AbortSignal.timeout(20000)
+  });
+  const text = await r.text();
+  try { return parseLinePayResponse(text); }
+  catch { return { returnCode:String(r.status), returnMessage:text }; }
+}
+
 function safeOrderNo(value) {
   const s = String(value || '').trim();
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(s)) throw new Error('Invalid orderNo');
@@ -158,7 +169,7 @@ async function putSheetValues(range, values) {
 async function ensurePaymentHeaders() {
   const rows = await getSheetValues(sheetRange('1:1'));
   const headers = rows[0] || [];
-  const needed = ['LINE Pay交易編號','LINE Pay付款時間'];
+  const needed = ['LINE Pay交易編號','LINE Pay付款時間','LINE Pay錯誤訊息'];
   for (const name of needed) {
     if (headers.indexOf(name) === -1) {
       headers.push(name);
@@ -264,7 +275,8 @@ async function handleRequestPayment(req, res) {
   await updateOrderFields(order, {
     '付款方式':'LINE Pay',
     '付款狀態':'未付款',
-    'LINE Pay交易編號':transactionId
+    'LINE Pay交易編號':transactionId,
+    'LINE Pay錯誤訊息':''
   });
 
   return json(res, 200, { ok:true, orderNo, transactionId, paymentUrl });
@@ -290,6 +302,7 @@ async function handleConfirm(url, res) {
 
   const storedTx = String(order.obj['LINE Pay交易編號'] || '').trim();
   if (storedTx && storedTx !== transactionId) {
+    await updateOrderFields(order, { 'LINE Pay錯誤訊息':'交易編號不一致' });
     return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
   }
 
@@ -304,14 +317,41 @@ async function handleConfirm(url, res) {
     await updateOrderFields(order, {
       '付款狀態':'已付款',
       'LINE Pay交易編號':transactionId,
-      'LINE Pay付款時間':paidAt
+      'LINE Pay付款時間':paidAt,
+      'LINE Pay錯誤訊息':''
     });
     return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
   }
 
   console.error('LINE Pay confirm failed:', result.returnCode, result.returnMessage);
-  await updateOrderFields(order, { '付款狀態':'未付款' });
-  return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
+
+  // A confirm response can be lost after LINE Pay has already completed the
+  // charge. Reconcile against LINE Pay before declaring the order unpaid.
+  try {
+    const lookup = await lineGet('/v2/payments?transactionId=' + encodeURIComponent(transactionId));
+    const payments = lookup && lookup.info;
+    const matched = Array.isArray(payments) && payments.find(payment =>
+      String(payment.transactionId || '') === transactionId &&
+      String(payment.orderId || '') === orderNo &&
+      Number(payment.payInfo && payment.payInfo.reduce((sum, item) => sum + Number(item.amount || 0), 0)) === amount
+    );
+    if (lookup.returnCode === '0000' && matched) {
+      const paidAt = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Taipei', hour12:false });
+      await updateOrderFields(order, {
+        '付款狀態':'已付款',
+        'LINE Pay交易編號':transactionId,
+        'LINE Pay付款時間':paidAt,
+        'LINE Pay錯誤訊息':''
+      });
+      return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
+    }
+  } catch (lookupError) {
+    console.error('LINE Pay reconciliation failed:', lookupError.message);
+  }
+
+  const errorText = String(result.returnCode || 'UNKNOWN') + '｜' + String(result.returnMessage || '付款確認失敗');
+  await updateOrderFields(order, { '付款狀態':'未付款', 'LINE Pay錯誤訊息':errorText.slice(0, 300) });
+  return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo) + '&code=' + encodeURIComponent(result.returnCode || 'UNKNOWN'));
 }
 
 async function handler(req, res) {
@@ -323,7 +363,7 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
-        version:'2026-09-23-tx-precision-1',
+        version:'2026-09-24-reconcile-2',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
@@ -354,6 +394,14 @@ async function handler(req, res) {
     return json(res, 404, { ok:false, error:'Not found' });
   } catch (err) {
     console.error(err);
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      if (req.method === 'GET' && url.pathname.startsWith('/linepay/confirm')) {
+        const pathOrderNo = decodeURIComponent(url.pathname.slice('/linepay/confirm/'.length));
+        const orderNo = url.searchParams.get('orderId') || url.searchParams.get('orderNo') || pathOrderNo;
+        return redirect(res, STOREFRONT_URL + '?linepay=error' + (orderNo ? '&orderNo=' + encodeURIComponent(orderNo) : '') + '&code=SERVER');
+      }
+    } catch (_) {}
     return json(res, 500, { ok:false, error:err.message || 'Internal error' });
   }
 }
