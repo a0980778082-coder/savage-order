@@ -11,6 +11,7 @@ const STOREFRONT_ORIGIN = new URL(STOREFRONT_URL).origin;
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1kzWWfa7ES04Ly4oyNdcwsTsOtSjPC01VF5ovHMSSwcE';
 const ORDER_SHEET = process.env.ORDER_SHEET || '訂單主檔';
+const DETAIL_SHEET = process.env.DETAIL_SHEET || '訂單明細';
 
 const API_BASE = LINEPAY_ENV === 'SANDBOX'
   ? 'https://sandbox-api-pay.line.me'
@@ -215,6 +216,54 @@ async function findOrderByTransactionId(transactionId) {
   throw new Error('找不到 LINE Pay 交易 ' + transactionId);
 }
 
+async function findOrderItems(orderNo) {
+  const rows = await getSheetValues("'" + DETAIL_SHEET.replace(/'/g, "''") + "'!A:H");
+  if (!rows.length) return [];
+  const headers = rows[0].map(x => String(x || '').trim());
+  const orderCol = headers.indexOf('訂單編號');
+  if (orderCol < 0) return [];
+  return rows.slice(1).filter(row => String(row[orderCol] || '') === orderNo).map(row => {
+    const value = name => row[headers.indexOf(name)] ?? '';
+    return {
+      category:String(value('分類')),
+      name:String(value('品項')),
+      price:Number(value('單價') || 0),
+      qty:Number(value('數量') || 0),
+      riceOption:String(value('飯量/客製')),
+      subtotal:Number(value('小計') || 0)
+    };
+  });
+}
+
+async function handleReceipt(url, res) {
+  const orderNo = safeOrderNo(url.searchParams.get('orderNo'));
+  const transactionId = String(url.searchParams.get('transactionId') || '').trim();
+  if (!/^\d{1,30}$/.test(transactionId)) return json(res, 400, { ok:false, error:'Invalid transactionId' });
+  const order = await findOrder(orderNo);
+  if (String(order.obj['LINE Pay交易編號'] || '').trim() !== transactionId || String(order.obj['付款狀態'] || '').trim() !== '已付款') {
+    return json(res, 403, { ok:false, error:'Payment receipt unavailable' });
+  }
+  const items = await findOrderItems(orderNo);
+  return json(res, 200, {
+    ok:true,
+    orderNo,
+    total:safeAmount(order.obj['總金額']),
+    paymentStatus:'已付款',
+    order:{
+      paymentMethod:'LINE Pay',
+      deliveryDate:String(order.obj['送餐日期'] || ''),
+      mealPeriod:String(order.obj['餐期'] || ''),
+      mall:String(order.obj['百貨'] || ''),
+      building:String(order.obj['館別'] || ''),
+      floor:String(order.obj['樓層'] || ''),
+      counterName:String(order.obj['櫃位/品牌'] || ''),
+      contactName:String(order.obj['聯絡人姓名'] || ''),
+      contactPhone:String(order.obj['聯絡電話'] || ''),
+      items
+    }
+  });
+}
+
 async function updateOrderFields(order, fields) {
   for (const [name, value] of Object.entries(fields)) {
     const idx = order.headers.indexOf(name);
@@ -296,7 +345,7 @@ async function handleConfirm(url, res) {
   }
   const orderNo = safeOrderNo(order.obj['訂單編號']);
   if (String(order.obj['付款狀態'] || '').trim() === '已付款') {
-    return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
+    return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo) + '&tx=' + encodeURIComponent(transactionId));
   }
 
   const storedTx = String(order.obj['LINE Pay交易編號'] || '').trim();
@@ -317,7 +366,7 @@ async function handleConfirm(url, res) {
       'LINE Pay交易編號':transactionId,
       'LINE Pay付款時間':paidAt
     });
-    return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
+    return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo) + '&tx=' + encodeURIComponent(transactionId));
   }
 
   console.error('LINE Pay confirm failed:', result.returnCode, result.returnMessage);
@@ -339,7 +388,7 @@ async function handleConfirm(url, res) {
         'LINE Pay交易編號':transactionId,
         'LINE Pay付款時間':paidAt
       });
-      return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo));
+      return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo) + '&tx=' + encodeURIComponent(transactionId));
     }
   } catch (lookupError) {
     console.error('LINE Pay reconciliation failed:', lookupError.message);
@@ -358,13 +407,16 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
-        version:'2026-09-24-reconcile-3',
+        version:'2026-09-24-receipt-4',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
     }
     if (req.method === 'POST' && url.pathname === '/linepay/request') {
       return await handleRequestPayment(req, res);
+    }
+    if (req.method === 'GET' && url.pathname === '/linepay/order') {
+      return await handleReceipt(url, res);
     }
     if (req.method === 'GET' && (url.pathname === '/linepay/confirm' || url.pathname.startsWith('/linepay/confirm/'))) {
       if (!url.searchParams.get('orderId') && !url.searchParams.get('orderNo')) {
