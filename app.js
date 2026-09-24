@@ -35,17 +35,32 @@
     return data;
   }
 
+  async function fetchLinePayReceipt(orderNo,transactionId){
+    if(!cfg.LINEPAY_API_URL||!orderNo||!transactionId)return null;
+    const url=cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/order?orderNo='+encodeURIComponent(orderNo)+'&transactionId='+encodeURIComponent(transactionId);
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok)return null;
+    const data=await r.json();
+    return data&&data.ok?data:null;
+  }
+
   function handleLinePayReturn(){
     const url=new URL(location.href),status=url.searchParams.get('linepay');
     if(!status)return;
-    const orderNo=url.searchParams.get('orderNo')||'',code=url.searchParams.get('code')||'';
+    const orderNo=url.searchParams.get('orderNo')||'',code=url.searchParams.get('code')||'',transactionId=url.searchParams.get('tx')||'';
     let pending=null;
     try{pending=JSON.parse(localStorage.getItem('savage_linepay_pending')||'null')}catch(ignore){}
     localStorage.removeItem('savage_linepay_pending');
-    url.searchParams.delete('linepay');url.searchParams.delete('orderNo');url.searchParams.delete('code');
+    url.searchParams.delete('linepay');url.searchParams.delete('orderNo');url.searchParams.delete('code');url.searchParams.delete('tx');
     history.replaceState({},'',url.pathname+(url.searchParams.toString()?'?'+url.searchParams.toString():'')+url.hash);
-    setTimeout(()=>{
+    setTimeout(async()=>{
       if(status==='success'){
+        if(!pending&&transactionId){
+          try{
+            const receipt=await fetchLinePayReceipt(orderNo,transactionId);
+            if(receipt)pending={orderNo:receipt.orderNo,total:receipt.total,order:receipt.order};
+          }catch(ignore){}
+        }
         const order=pending&&pending.order||{};
         renderOrderSuccess({orderNo:orderNo||(pending&&pending.orderNo)||'',total:pending&&pending.total||0,paymentStatus:'已付款'},order);
         $('successPaymentStatus').textContent='已付款';
