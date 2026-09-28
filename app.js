@@ -6,6 +6,14 @@
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
+  function normalizePhone(value){
+    const raw=String(value??'').trim();
+    const digits=raw.replace(/\D/g,'');
+    // 台灣手機 / 市內電話若只剩 9 碼，通常是試算表或舊記憶把開頭 0 吃掉。
+    if(/^\d{9}$/.test(digits) && digits[0]!=='0') return '0'+digits;
+    return raw;
+  }
+
   function jsonp(action, params={}) {
     return new Promise((resolve,reject) => {
       const cb='__savage_cb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
@@ -174,7 +182,12 @@
     if(profile.floor)els.floor.value=profile.floor;
     $('counterName').value=profile.counterName||'';
     $('contactName').value=profile.contactName||'';
-    $('contactPhone').value=profile.contactPhone||'';
+    const restoredPhone=normalizePhone(profile.contactPhone||'');
+    $('contactPhone').value=restoredPhone;
+    if(restoredPhone && restoredPhone!==String(profile.contactPhone||'')){
+      profile.contactPhone=restoredPhone;
+      try{localStorage.setItem(DELIVERY_MEMORY_KEY,JSON.stringify(profile))}catch(ignore){}
+    }
     $('rememberDelivery').checked=true;
     if(profile.mall||profile.counterName||profile.contactPhone)setTimeout(()=>toast('已帶入上次配送資料'),350);
   }
@@ -184,7 +197,7 @@
     const profile={
       mall:els.mall.value,building:els.building.value,floor:els.floor.value,
       counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),
-      contactPhone:$('contactPhone').value.trim(),savedAt:new Date().toISOString()
+      contactPhone:normalizePhone($('contactPhone').value),savedAt:new Date().toISOString()
     };
     try{localStorage.setItem(DELIVERY_MEMORY_KEY,JSON.stringify(profile))}catch(ignore){}
   }
@@ -499,6 +512,7 @@
 
   function validate(){
     const blocked=orderingBlockReason();if(blocked){toast(blocked);return false}
+    $('contactPhone').value=normalizePhone($('contactPhone').value);
     const required=[['deliveryDate','請選擇送餐日期'],['mall','請選擇百貨'],['building','請選擇館別'],['floor','請選擇樓層'],['counterName','請填寫櫃位／品牌'],['contactName','請填寫聯絡人'],['contactPhone','請填寫聯絡電話']];
     for(const [id,msg] of required){if(!$(id).value.trim()){toast(msg);$(id).focus();return false}}
     if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
@@ -532,7 +546,7 @@
   }
   function buildPayload(){
     const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
-    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:$('contactPhone').value.trim(),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
+    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:normalizePhone($('contactPhone').value),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
   }
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
@@ -663,7 +677,8 @@
   }
   function lookupHistory(){
     if(state.historyLoading)return;
-    const phone=$('historyPhone').value.trim();
+    const phone=normalizePhone($('historyPhone').value);
+    $('historyPhone').value=phone;
     if(!/^[0-9+()\-\s]{8,20}$/.test(phone)){toast('請輸入正確的聯絡手機');$('historyPhone').focus();return}
     state.historyLoading=true;
     $('historyLookupBtn').disabled=true;$('historyLookupBtn').textContent='查詢中…';$('historyLoading').hidden=false;$('historyResults').hidden=true;
