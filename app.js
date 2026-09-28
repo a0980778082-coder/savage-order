@@ -2,7 +2,7 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', handledOrderNo: '' };
+  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', handledOrderNo: '', pendingPaymentOrderNo: '' };
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
@@ -440,6 +440,10 @@
     document.body.classList.remove('is-submitting');
   }
   function submitOrder(){
+    if(state.pendingPaymentOrderNo){
+      $('orderResultDialog').showModal();
+      return;
+    }
     if(state.submitting||!validate())return;
     const meal=document.querySelector('input[name="mealPeriod"]:checked').value;
     const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n\n確認後送出訂單？`;
@@ -483,7 +487,12 @@
           return;
         }catch(err){
           hideSubmitOverlay();
-          $('orderFailMessage').textContent='訂單已建立（'+d.orderNo+'），但 LINE Pay 啟動失敗：'+(err.message||String(err))+'。請勿重複下單。';
+          state.pendingPaymentOrderNo=d.orderNo;
+          els.submitBtn.disabled=true;
+          els.submitBtn.textContent='請先確認原訂單付款';
+          $('orderResultDialog').querySelector('h2').textContent='訂單已建立，付款未完成';
+          $('orderFailBtn').textContent='我已記下訂單編號';
+          $('orderFailMessage').textContent='訂單編號：'+d.orderNo+'。LINE Pay 未能開啟（'+(err.message||String(err))+'）。請保留此編號並聯絡店家確認付款，勿再次送出訂單。';
           if(typeof $('orderResultDialog').showModal==='function') $('orderResultDialog').showModal(); else alert($('orderFailMessage').textContent);
           return;
         }
