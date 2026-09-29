@@ -31,7 +31,7 @@
     <section id="staffView" hidden>
       <header class="mobile-header">
         <div><div class="eyebrow">小野人餐盒製造所</div><h1>今日 POS Key 單</h1></div>
-        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="settlementBtn" class="ghost settlement-btn">💰 每日結帳</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
+        <div class="header-actions"><button id="notifyBtn" class="ghost notify-btn">開啟通知</button><button id="focusModeBtn" class="ghost">專注模式</button><button id="settlementBtn" class="ghost settlement-btn">💰 每日結帳</button><button id="mallOrderingBtn" class="ghost" type="button">百貨接單管理</button><button id="businessBtn" class="ghost">營業公告</button><button id="deliveryBtn" class="ghost">🚗 智慧配送</button><button id="inventoryBtn" class="ghost">商品庫存</button><button id="logoutBtn" class="ghost">登出</button></div>
       </header>
 
       <section class="sticky-tools">
@@ -179,6 +179,18 @@
     </div>
   </dialog>
 
+  <dialog id="mallOrderingDialog" class="mall-ordering-dialog" aria-labelledby="mallOrderingTitle">
+    <div class="mall-ordering-head">
+      <div><h2 id="mallOrderingTitle">百貨接單管理</h2><p>依送餐日期，分別設定各百貨的午餐、晚餐。</p></div>
+      <button id="closeMallOrderingBtn" class="ghost" type="button">關閉</button>
+    </div>
+    <label class="mall-ordering-date">送餐日期<input id="mallOrderingDate" type="date" required></label>
+    <p class="mall-ordering-note">只影響選定日期的新訂單及客人改單，既有訂單不會取消。其他日期維持原設定；全店店休或餐期暫停仍優先適用。</p>
+    <p id="mallOrderingStatus" role="status" aria-live="polite"></p>
+    <button id="retryMallOrderingBtn" class="ghost" type="button" hidden>重新載入</button>
+    <div id="mallOrderingList"></div>
+  </dialog>
+
   <dialog id="loginResultDialog" class="result-dialog">
     <div id="loginResultIcon" class="result-icon">✓</div>
     <h2 id="loginResultTitle">登入成功</h2>
@@ -187,6 +199,6 @@
   </dialog>
 
   <script src="config.js?v=405"></script>
-  <script src="staff.js?v=412"></script>
+  <script src="staff.js?v=413"></script>
 </body>
 </html>

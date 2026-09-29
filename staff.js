@@ -647,6 +647,62 @@
   $('prevDateBtn').addEventListener('click',()=>shiftSelectedDate(-1));
   $('nextDateBtn').addEventListener('click',()=>shiftSelectedDate(1));
 
+  let mallOrderingRows=[],mallOrderingBusy=false,mallOrderingLoadedDate='',mallOrderingLoadId=0;
+  function taipeiToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+  async function loadMallOrdering(){
+    const date=$('mallOrderingDate').value,loadId=++mallOrderingLoadId;
+    mallOrderingLoadedDate='';mallOrderingRows=[];$('mallOrderingList').replaceChildren();
+    $('mallOrderingStatus').textContent='正在讀取接單設定…';$('mallOrderingStatus').className='';$('retryMallOrderingBtn').hidden=true;
+    if(!date){$('mallOrderingStatus').textContent='請選擇送餐日期';return;}
+    try{
+      const r=await apiPost('mallOrderingGet',{token,date});
+      if(loadId!==mallOrderingLoadId)return;
+      if(!r.data||r.data.date!==date||!Array.isArray(r.data.rows))throw Error('後端尚未支援百貨接單管理，請先更新後端部署');
+      mallOrderingRows=r.data.rows;mallOrderingLoadedDate=date;renderMallOrdering();
+      $('mallOrderingStatus').textContent=mallOrderingRows.length?'調整後，請按該百貨的「儲存設定」。':'目前沒有可設定的百貨';
+    }catch(e){if(loadId!==mallOrderingLoadId)return;$('mallOrderingStatus').textContent='讀取失敗：'+e.message;$('mallOrderingStatus').className='mall-ordering-error';$('retryMallOrderingBtn').hidden=false;}
+  }
+  function renderMallOrdering(){
+    $('mallOrderingList').innerHTML=mallOrderingRows.map((r,i)=>`<section class="mall-ordering-card" data-mall-ordering="${i}">
+      <h3>${esc(r.mall)}</h3><div class="mall-ordering-periods">
+      <label>午餐<select data-meal="lunch" aria-label="${esc(r.mall)}午餐"><option value="true" ${r.lunchOpen?'selected':''}>開放接單</option><option value="false" ${!r.lunchOpen?'selected':''}>暫停配送</option></select></label>
+      <label>晚餐<select data-meal="dinner" aria-label="${esc(r.mall)}晚餐"><option value="true" ${r.dinnerOpen?'selected':''}>開放接單</option><option value="false" ${!r.dinnerOpen?'selected':''}>暫停配送</option></select></label></div>
+      <label class="mall-ordering-reason">暫停原因（選填，客人看得到）<input data-reason maxlength="120" value="${esc(r.reason)}" placeholder="例如：今日外送已額滿"></label>
+      <footer><span data-saved role="status">${esc(mallOrderingLoadedDate)} 的設定</span><button type="button" class="primary" data-save-mall>儲存設定</button></footer>
+    </section>`).join('');
+    const past=mallOrderingLoadedDate<taipeiToday();
+    $('mallOrderingList').querySelectorAll('input,select,button').forEach(el=>el.disabled=past);
+  }
+  async function saveMallOrderingCard(card){
+    if(mallOrderingBusy||!mallOrderingLoadedDate)return;
+    const row=mallOrderingRows[Number(card.dataset.mallOrdering)],date=mallOrderingLoadedDate;
+    if(!row||$('mallOrderingDate').value!==date)return;
+    const payload={token,date,mall:row.mall,lunchOpen:card.querySelector('[data-meal="lunch"]').value==='true',dinnerOpen:card.querySelector('[data-meal="dinner"]').value==='true',reason:card.querySelector('[data-reason]').value.trim()};
+    mallOrderingBusy=true;$('mallOrderingDate').disabled=true;
+    $('mallOrderingList').querySelectorAll('input,select,button').forEach(el=>el.disabled=true);
+    card.querySelector('[data-saved]').textContent='儲存中…';
+    try{
+      const r=await apiPost('mallOrderingSave',payload);
+      if(!r.data||!Array.isArray(r.data.rows))throw Error('未收到儲存確認，請重新載入確認結果');
+      const saved=r.data.rows.find(x=>x.mall===row.mall);
+      if(!saved||r.data.date!==date||saved.lunchOpen!==payload.lunchOpen||saved.dinnerOpen!==payload.dinnerOpen||saved.reason!==payload.reason)throw Error('設定已變動，請重新載入確認結果');
+      Object.assign(row,saved);card.querySelector('[data-saved]').textContent='已儲存 · '+date;
+      showToast(row.mall+' 接單設定已儲存','success');
+    }catch(e){card.querySelector('[data-saved]').textContent='儲存未確認，請重試或重新載入';showToast(e.message,'error');$('retryMallOrderingBtn').hidden=false;}
+    finally{mallOrderingBusy=false;$('mallOrderingDate').disabled=false;$('mallOrderingList').querySelectorAll('input,select,button').forEach(el=>el.disabled=false);}
+  }
+  $('mallOrderingBtn').addEventListener('click',()=>{
+    if(mallOrderingBusy)return;
+    $('mallOrderingDate').value=selectedDeliveryDate||taipeiToday();
+    $('mallOrderingDate').min=taipeiToday();$('mallOrderingDialog').showModal();loadMallOrdering();
+  });
+  $('closeMallOrderingBtn').addEventListener('click',()=>{if(!mallOrderingBusy)$('mallOrderingDialog').close();});
+  $('mallOrderingDialog').addEventListener('cancel',e=>{if(mallOrderingBusy)e.preventDefault();});
+  $('mallOrderingDate').addEventListener('change',loadMallOrdering);
+  $('retryMallOrderingBtn').addEventListener('click',()=>{if(!mallOrderingBusy)loadMallOrdering();});
+  $('mallOrderingList').addEventListener('input',e=>{const card=e.target.closest('[data-mall-ordering]');if(card)card.querySelector('[data-saved]').textContent='尚未儲存';});
+  $('mallOrderingList').addEventListener('click',e=>{if(e.target.closest('[data-save-mall]'))saveMallOrderingCard(e.target.closest('[data-mall-ordering]'));});
+
   registerServiceWorker();updateNotifyButton();
   if (focusMode) document.body.classList.add('focus-mode');
   if (token) { showStaff(); loadOrders(); }

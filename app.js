@@ -2,7 +2,7 @@
   'use strict';
   const cfg = window.SAVAGE_CONFIG || {};
   const DELIVERY_MEMORY_KEY = 'savage_delivery_profile_v1';
-  const state = { malls: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [], handledOrderNo: '' };
+  const state = { malls: [], mallOrdering: [], menu: [], settings: {}, cart: new Map(), submitting: false, spinning: false, lastOrder: null, pendingOrder: null, requestId: null, submitTimer: null, editingOrderNo: '', originalPhone: '', historyLoading: false, historyOrders: [], handledOrderNo: '' };
   const $ = (id) => document.getElementById(id);
   const els = { deliveryDate:$('deliveryDate'), mall:$('mall'), building:$('building'), floor:$('floor'), categorySelect:$('categorySelect'), menuRoot:$('menuRoot'), menuLoading:$('menuLoading'), totalQty:$('totalQty'), totalPrice:$('totalPrice'), submitBtn:$('submitBtn'), linePayBox:$('linePayBox'), transferBox:$('transferBox'), invoiceExtraField:$('invoiceExtraField'), invoiceExtraLabel:$('invoiceExtraLabel'), invoiceCarrier:$('invoiceCarrier'), wheelDialog:$('wheelDialog'), prizeWheel:$('prizeWheel'), spinResult:$('spinResult'), submitOverlay:$('submitOverlay'), submitOverlayText:$('submitOverlayText'), siteMarquee:$('siteMarquee'), siteMarqueeText:$('siteMarqueeText'), businessStatusBanner:$('businessStatusBanner'), businessStatusTitle:$('businessStatusTitle'), businessStatusMessage:$('businessStatusMessage'), announcementDialog:$('announcementDialog') };
 
@@ -91,9 +91,10 @@
     try{
       const res=await jsonp('publicData');
       if(!res || res.ok===false) throw new Error(res && res.error || '資料載入失敗');
-      state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};
+      state.malls=normalizeMallRows(res.data.malls||[]);state.menu=res.data.menu||[];state.settings=res.data.settings||{};state.mallOrdering=res.data.mallOrdering||[];
       setupDeliveryDate();renderMallOptions();renderMenu();renderPaymentInfo();restoreDeliveryProfile();renderBusinessNotice();
       els.menuLoading.hidden=true;els.menuRoot.hidden=false;updateSummary();
+      if(Array.isArray(res.data.mallOrdering)){setInterval(refreshMallOrdering,60000);window.addEventListener("focus",refreshMallOrdering);}
     }catch(err){showFatal(err.message||String(err));}finally{clearTimeout(slowNotice);}
   }
 
@@ -217,6 +218,7 @@
     els.building.disabled=!els.mall.value;els.floor.disabled=true;
     els.building.innerHTML='<option value="">請選擇館別／棟別</option>'+buildings.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
     els.floor.innerHTML='<option value="">請先選館別</option>';
+    applyOrderingAvailability();
   }
   function onBuildingChange(){
     const rows=state.malls.filter(x=>x['百貨']===els.mall.value&&x['館別']===els.building.value).sort((a,b)=>Number(a['樓層排序'])-Number(b['樓層排序']));
@@ -437,12 +439,13 @@
   }
   function orderingBlockReason(){
     const b=effectiveBusinessState();
-    if(!b.active)return '';
+    const mallReason=mallOrderingReason();
+    if(!b.active)return mallReason;
     const meal=(document.querySelector('input[name="mealPeriod"]:checked')||{}).value||'午餐';
     if(b.status==='CLOSED')return '目前店休，暫停接受訂單';
     if(b.status==='LUNCH_CLOSED'&&meal==='午餐')return '本日午餐暫停接單';
     if(b.status==='DINNER_CLOSED'&&meal==='晚餐')return '本日晚餐暫停接單';
-    return '';
+    return mallReason;
   }
   function statusDefaultCopy(status){
     return {
@@ -475,19 +478,39 @@
     }
     applyOrderingAvailability();
   }
+  function mallOrderingReason(){
+    const date=els.deliveryDate.value,mall=els.mall.value;
+    const meal=(document.querySelector('input[name="mealPeriod"]:checked')||{}).value||'午餐';
+    const row=state.mallOrdering.find(r=>r.date===date&&r.mall===mall);
+    if(row&&((meal==='午餐'&&!row.lunchOpen)||(meal==='晚餐'&&!row.dinnerOpen)))return `${mall} ${date} ${meal}暫停配送${row.reason?'：'+row.reason:'，請選擇其他日期或餐期'}`;
+    return '';
+  }
+  let mallOrderingRefreshing=false;
+  async function refreshMallOrdering(){
+    if(mallOrderingRefreshing||document.hidden)return;
+    mallOrderingRefreshing=true;
+    try{const r=await jsonp('mallOrderingPublic');if(r.ok&&Array.isArray(r.rows)){state.mallOrdering=r.rows;applyOrderingAvailability();}}
+    catch(e){console.warn('暫時無法更新配送狀態，送單時將由伺服器再次確認');}
+    finally{mallOrderingRefreshing=false;}
+  }
   function applyOrderingAvailability(){
     const reason=orderingBlockReason();
     const cartEmpty=els.submitBtn.dataset.cartEmpty!=='false';
     els.submitBtn.disabled=!!reason||cartEmpty||state.submitting;
     els.submitBtn.classList.toggle('ordering-closed',!!reason);
     if(reason){
-      els.submitBtn.textContent=reason.includes('午餐')?'午餐暫停接單':reason.includes('晚餐')?'晚餐暫停接單':'目前店休';
+      els.submitBtn.textContent='此餐期暫停接單';
       els.businessStatusBanner.hidden=false;
       els.businessStatusBanner.classList.add('closed');
-      if(!els.businessStatusTitle.textContent)els.businessStatusTitle.textContent='暫停接單';
-      if(!els.businessStatusMessage.textContent)els.businessStatusMessage.textContent=reason;
-    }else if(!state.submitting){
-      els.submitBtn.textContent=state.editingOrderNo?'更新訂單':'送出訂單';
+      els.businessStatusTitle.textContent='暫停接單';
+      els.businessStatusMessage.textContent=reason;
+    }else{
+      if(!state.submitting)els.submitBtn.textContent=state.editingOrderNo?'更新訂單':'送出訂單';
+      const b=effectiveBusinessState(),defaults=statusDefaultCopy(b.status);
+      els.businessStatusBanner.hidden=!(b.noticeEnabled||b.status!=='OPEN');
+      els.businessStatusBanner.classList.remove('closed');
+      els.businessStatusTitle.textContent=b.title||defaults[0];
+      els.businessStatusMessage.textContent=b.message||defaults[1];
     }
   }
 
