@@ -125,10 +125,26 @@ function colLetter(n) {
   return s;
 }
 
+// Retry only read-only Google requests. Never replay LINE Pay payment POSTs.
+async function googleRead(url, options = {}, timeoutMs = 15000) {
+  for (let attempt = 0; ; attempt++) {
+    let response;
+    try {
+      response = await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
+    } catch (error) {
+      if (attempt >= 2) throw error;
+    }
+    if (response && ![429, 500, 502, 503, 504].includes(response.status)) return response;
+    if (response && attempt >= 2) return response;
+    if (response && response.body) await response.body.cancel().catch(() => {});
+    await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+  }
+}
+
 async function googleToken() {
-  const r = await fetch(
+  const r = await googleRead(
     'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
-    { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(10000) }
+    { headers: { 'Metadata-Flavor': 'Google' } }, 10000
   );
   if (!r.ok) throw new Error('Google service account token unavailable');
   const data = await r.json();
@@ -140,7 +156,7 @@ async function sheetsRequest(method, range, body) {
   let url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
     encodeURIComponent(SPREADSHEET_ID) + '/values/' + encodeURIComponent(range);
   if (method === 'PUT') url += '?valueInputOption=USER_ENTERED';
-  const r = await fetch(url, {
+  const r = await (method === 'GET' ? googleRead : fetch)(url, {
     method,
     headers: {
       'Authorization': 'Bearer ' + token,
@@ -407,7 +423,7 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
-        version:'2026-09-24-receipt-4',
+        version:'2026-10-03-google-read-retry-1',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
