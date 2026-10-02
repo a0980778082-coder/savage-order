@@ -346,6 +346,14 @@ async function handleRequestPayment(req, res) {
   return json(res, 200, { ok:true, orderNo, transactionId, paymentUrl });
 }
 
+function paymentPending(res, orderNo) {
+  // orderNo is validated before inclusion in HTML. An unknown charge outcome
+  // must never invite a second payment or be presented as a definite failure.
+  const safeNo = safeOrderNo(orderNo);
+  res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store' });
+  res.end('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>付款結果待確認</title><body style="font-family:system-ui;max-width:32rem;margin:12vh auto;padding:24px;line-height:1.8"><h1>付款結果待確認</h1><p>訂單：' + safeNo + '</p><p>目前暫時無法確認付款結果，請勿重複付款。</p><p>請查看 LINE Pay 交易紀錄，並提供訂單編號給店家協助確認。</p></body></html>');
+}
+
 async function handleConfirm(url, res) {
   const transactionId = String(url.searchParams.get('transactionId') || '').trim();
   if (!/^\d{1,30}$/.test(transactionId)) {
@@ -360,20 +368,25 @@ async function handleConfirm(url, res) {
     order = await findOrderByTransactionId(transactionId);
   }
   const orderNo = safeOrderNo(order.obj['訂單編號']);
+  const storedTx = String(order.obj['LINE Pay交易編號'] || '').trim();
+  if (!storedTx || storedTx !== transactionId) {
+    return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
+  }
   if (String(order.obj['付款狀態'] || '').trim() === '已付款') {
     return redirect(res, STOREFRONT_URL + '?linepay=success&orderNo=' + encodeURIComponent(orderNo) + '&tx=' + encodeURIComponent(transactionId));
   }
 
-  const storedTx = String(order.obj['LINE Pay交易編號'] || '').trim();
-  if (storedTx && storedTx !== transactionId) {
-    return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo));
-  }
-
   const amount = safeAmount(order.obj['總金額']);
-  const result = await linePost('/v2/payments/' + encodeURIComponent(transactionId) + '/confirm', {
-    amount,
-    currency: 'TWD'
-  });
+  let result;
+  try {
+    result = await linePost('/v2/payments/' + encodeURIComponent(transactionId) + '/confirm', {
+      amount,
+      currency: 'TWD'
+    });
+  } catch (error) {
+    console.error('LINE Pay confirm outcome unknown:', orderNo, error.message);
+    result = { returnCode:'UNKNOWN', returnMessage:'Confirmation response unavailable' };
+  }
 
   if (result.returnCode === '0000') {
     const paidAt = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Taipei', hour12:false });
@@ -395,6 +408,8 @@ async function handleConfirm(url, res) {
     const matched = Array.isArray(payments) && payments.find(payment =>
       String(payment.transactionId || '') === transactionId &&
       String(payment.orderId || '') === orderNo &&
+      payment.transactionType === 'PAYMENT' && payment.currency === 'TWD' &&
+      Array.isArray(payment.payInfo) &&
       Number(payment.payInfo && payment.payInfo.reduce((sum, item) => sum + Number(item.amount || 0), 0)) === amount
     );
     if (lookup.returnCode === '0000' && matched) {
@@ -410,8 +425,9 @@ async function handleConfirm(url, res) {
     console.error('LINE Pay reconciliation failed:', lookupError.message);
   }
 
-  await updateOrderFields(order, { '付款狀態':'未付款' });
-  return redirect(res, STOREFRONT_URL + '?linepay=error&orderNo=' + encodeURIComponent(orderNo) + '&code=' + encodeURIComponent(result.returnCode || 'UNKNOWN'));
+  // A missing detail response is not proof that no charge occurred.
+  // Preserve the stored status until a verified result is available.
+  return paymentPending(res, orderNo);
 }
 
 async function handler(req, res) {
@@ -423,7 +439,7 @@ async function handler(req, res) {
       return json(res, 200, {
         ok:true,
         service:'savage-linepay',
-        version:'2026-10-03-google-read-retry-1',
+        version:'2026-10-03-confirm-reconcile-2',
         env:LINEPAY_ENV,
         sheetsConfigured:!!SPREADSHEET_ID
       });
@@ -462,7 +478,8 @@ async function handler(req, res) {
       if (req.method === 'GET' && url.pathname.startsWith('/linepay/confirm')) {
         const pathOrderNo = decodeURIComponent(url.pathname.slice('/linepay/confirm/'.length));
         const orderNo = url.searchParams.get('orderId') || url.searchParams.get('orderNo') || pathOrderNo;
-        return redirect(res, STOREFRONT_URL + '?linepay=error' + (orderNo ? '&orderNo=' + encodeURIComponent(orderNo) : '') + '&code=SERVER');
+        if (orderNo) return paymentPending(res, orderNo);
+        return redirect(res, STOREFRONT_URL + '?linepay=error&code=SERVER');
       }
     } catch (_) {}
     return json(res, 500, { ok:false, error:err.message || 'Internal error' });
