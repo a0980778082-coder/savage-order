@@ -503,7 +503,8 @@ function sendLineOrderNotification_(no,p,total){var ss=SpreadsheetApp.openById(C
 
 function setSetting_(key,value){var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=ss.getSheetByName(CONFIG.sheets.settings),v=sh.getDataRange().getValues();for(var i=1;i<v.length;i++){if(v[i][0]===key){sh.getRange(i+1,2).setValue(value);return;}}sh.appendRow([key,value]);}
 function settingsObject_(ss){var o={};sheetObjects_(ss.getSheetByName(CONFIG.sheets.settings)).forEach(function(r){o[r['設定項目']]=r['設定值'];});return o;}
-function appendObjectRow_(sh,obj){var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];sh.appendRow(h.map(function(k){return Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:'';}));}
+function phoneSheetValue_(value){var phone=normalizePhone_(value);return phone ? "'"+phone : ''; }
+function appendObjectRow_(sh,obj){var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];sh.appendRow(h.map(function(k){var value=Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:'';return k==='聯絡電話'?phoneSheetValue_(value):value;}));}
 function sheetObjects_(sh){var v=sh.getDataRange().getDisplayValues();if(v.length<2)return[];var h=v[0];return v.slice(1).filter(function(r){return r.some(function(x){return x!=='';});}).map(function(r){var o={};h.forEach(function(k,i){o[k]=r[i];});return o;});}
 function sheetObjectsRaw_(sh){
   var v=sh.getDataRange().getValues();
@@ -929,7 +930,7 @@ p.lineDisplayName='';
     var rows=p.items.filter(function(x){return Number(x.qty)>0;}).map(function(x){return [no,x.category,x.name,Number(x.price),Number(x.qty),x.riceOption||'',Number(x.price)*Number(x.qty)];});
     if(rows.length)ish.getRange(ish.getLastRow()+1,1,rows.length,7).setValues(rows);
     var subtotal=p.items.reduce(function(s,x){return s+Number(x.price)*Number(x.qty);},0),map={'送餐日期':normalizeDeliveryDate_(p.deliveryDate),'餐期':p.mealPeriod,'百貨':p.mall,'館別':p.building,'樓層':p.floor,'樓層排序':getFloorSort_(ss,p.mall,p.building,p.floor),'櫃位/品牌':p.counterName,'聯絡人姓名':p.contactName,'聯絡電話':p.contactPhone,'發票方式':p.invoiceType,'發票載具':p.invoiceCarrier||'','付款方式':p.paymentMethod,'LINE Pay後三碼':'','付款狀態':p.paymentMethod==='LINE Pay'?'等待付款':'待確認','總金額':subtotal,'訂單備註':p.note||'','配菜許願':String(p.sideDishWish||'').trim(),'LINE User ID':p.lineUserId,'LINE 顯示名稱':p.lineDisplayName,'LINE驗證時間':new Date(),'最後修改時間':new Date(),'修改次數':Number(ov[row][oh.indexOf('修改次數')]||0)+1};
-    Object.keys(map).forEach(function(k){var c=oh.indexOf(k);if(c>=0)osh.getRange(row+1,c+1).setValue(map[k]);});
+    Object.keys(map).forEach(function(k){var c=oh.indexOf(k);if(c>=0){var cell=osh.getRange(row+1,c+1);if(k==='聯絡電話')cell.setNumberFormat('@');cell.setValue(k==='聯絡電話'?phoneSheetValue_(map[k]):map[k]);}});
     try{sendLineOrderNotification_('✏️修改 '+no,p,subtotal);}catch(ignore){}
     return {orderNo:no,total:subtotal};
   }finally{lock.releaseLock();}
@@ -964,7 +965,7 @@ function rebuildCustomerRecordsV36_(ss){
   var now=new Date();
   var rows=Object.keys(customerMap).sort().map(function(phone){
     var c=customerMap[phone];
-    return [c.phone,c.name,c.count,c.last||'',now];
+    return [phoneSheetValue_(c.phone),c.name,c.count,c.last||'',now];
   });
   if(rows.length)sh.getRange(2,1,rows.length,5).setValues(rows);
   return {customers:rows.length,orders:orderRows.length};
