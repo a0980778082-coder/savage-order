@@ -6,8 +6,8 @@ function setup(time='2026-10-07T10:00:00+08:00'){
  class Clock extends Date{constructor(...a){super(...(a.length?a:[time]));}static now(){return new Clock().getTime();}}
  const headers=['訂單編號','送餐日期','餐期','百貨','聯絡電話','訂單狀態','POS已Key','付款狀態','總金額','配送狀態','餐期更改紀錄'];
  const row=['ORDER1','2026-10-07','午餐','中友','0912345678','新訂單',false,'已付款',135,'',''];
- const data=[headers,row];let held=false;
- const sh={getDataRange:()=>({getValues:()=>data.map(r=>[...r])}),getRange(r,c){return {setValue(x){assert.ok(held);data[r-1][c-1]=x;return this;}};}};
+ const data=[headers,row];let held=false,maxColumns=headers.length;
+ const sh={getMaxColumns:()=>maxColumns,insertColumnsAfter(at,n){assert.equal(at,maxColumns);maxColumns+=n;},getDataRange:()=>({getValues:()=>data.map(r=>[...r])}),getRange(r,c){return {setValue(x){assert.ok(held);assert.ok(c<=maxColumns);data[r-1][c-1]=x;return this;}};}};
  const ss={getSheetByName:()=>sh};
  const ctx=vm.createContext({Date:Clock,console,Utilities:{formatDate:d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)},SpreadsheetApp:{openById:()=>ss,flush(){}},LockService:{getScriptLock:()=>({waitLock(){assert.equal(held,false);held=true;},releaseLock(){held=false;}})}});
  vm.runInContext(fs.readFileSync('Code.gs','utf8'),ctx);
@@ -15,7 +15,7 @@ function setup(time='2026-10-07T10:00:00+08:00'){
  ctx.ensureBusinessSettings_=()=>{};ctx.settingsObject_=()=>({});ctx.mallOrderAvailability_=()=>({open:true,message:''});
  const p={orderNo:'ORDER1',phone:'0912345678',deliveryDate:'2026-10-08',mealPeriod:'午餐',requestId:'request-123'};
  const order=()=>Object.fromEntries(headers.map((h,i)=>[h,row[i]]));
- return {ctx,p,row,order,held:()=>held};
+ return {ctx,p,row,headers,order,held:()=>held};
 }
 test('Taipei cutoff edges and future meals (same result on overseas machines)',()=>{
  const {ctx}=setup();const check=(date,meal,time)=>ctx.mealCutoff_(date,meal,new Date(time)).open;
@@ -55,7 +55,21 @@ test('wrong phone, terminal states and dispatch between request and review canno
  ctx.changeMeal_(p,false);row[5]='配送中';
  assert.throws(()=>ctx.changeMeal_({...p,token:'staff',changeId:p.requestId,decision:'approve'},true),/配送/);
  assert.equal(order()['送餐日期'],'2026-10-07');assert.equal(held(),false);
- for(const status of ['客人取消','製作完成','已完成','已送達']){row[10]='';row[5]=status;if(status==='製作完成')continue;assert.throws(()=>ctx.changeMeal_(p,false),/結束/);}
+ for(const status of ['客人取消','製作完成','已出餐','已完成','已送達']){row[10]='';row[5]=status;assert.throws(()=>ctx.changeMeal_(p,false),/結束/);}
+});
+test('first request creates an audit column even when sheet capacity is full',()=>{
+ const {ctx,p,headers,row,order}=setup();headers.pop();row.pop();
+ ctx.changeMeal_(p,false);assert.equal(headers.at(-1),'餐期更改紀錄');assert.equal(ctx.mealRequest_(order()).pending,false);assert.equal(order()['付款狀態'],'已付款');
+});
+test('empty phone cannot authorize a malformed historical order',()=>{
+ const {ctx,p,row}=setup();row[4]='';assert.throws(()=>ctx.changeMeal_({...p,phone:''},false),/電話不符/);
+});
+test('repeated iframe replies show one result and restore the history action',()=>{
+ const source=fs.readFileSync('app.js','utf8');const start=source.indexOf('  function finishMealChange('),end=source.indexOf("  $('changeMealSubmit').addEventListener",start);
+ let alerts=0,lookups=0;const els={changeMealSubmit:{},changeMealDialog:{close(){}},historyActionInput:{}};
+ const front=vm.createContext({mealChangeRequest:'qa-request',mealChangeTimer:0,clearTimeout(){},$:id=>els[id],alert(){alerts++;},lookupHistory(){lookups++;},startHistoryAutoRefresh(){},toast(){}});
+ vm.runInContext(source.slice(start,end),front);for(let i=0;i<3;i++)front.finishMealChange({requestId:'qa-request',ok:true,message:'done'});
+ assert.equal(alerts,1);assert.equal(lookups,1);assert.equal(els.historyActionInput.value,'customerHistory');
 });
 test('frontend and backend agree across cutoffs and midnight',()=>{
  const {ctx}=setup();const source=fs.readFileSync('app.js','utf8');

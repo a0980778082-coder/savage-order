@@ -1426,7 +1426,7 @@ function mealCutoff_(date,meal,now){
   if(isNaN(at.getTime())||Utilities.formatDate(at,CONFIG.timezone,'yyyy-MM-dd')!==date)return {open:false,message:'送餐日期格式不正確'};
   return (now||new Date()).getTime()>=at.getTime()?{open:false,message:date+' '+meal+'已截止，請選擇其他日期或餐期'}:{open:true,message:''};
 }
-function mealTerminal_(o){return /取消|已完成|已送達|配送中|抵達|配送完成/.test(String(o['訂單狀態']||'')+' '+String(o['配送狀態']||''));}
+function mealTerminal_(o){return /取消|已完成|製作完成|已出餐|已取餐|已送達|配送中|抵達|配送完成/.test(String(o['訂單狀態']||'')+' '+String(o['配送狀態']||''));}
 function mealRequest_(o){
   var x;try{x=JSON.parse(o['餐期更改紀錄']||'{}');}catch(e){x={};}
   var r=x.current||{};
@@ -1449,7 +1449,7 @@ function changeMeal_(p,staff){
     for(var i=1;i<v.length;i++)if(String(v[i][h.indexOf('訂單編號')])===String(p.orderNo)){idx=i;break;}
     if(idx<0)throw new Error('找不到訂單');
     var row=v[idx],o={};h.forEach(function(k,i){o[k]=row[i];});
-    if(!staff&&normalizePhone_(p.phone)!==normalizePhone_(o['聯絡電話']))throw new Error('聯絡電話不符');
+    if(!staff&&(!normalizePhone_(p.phone)||normalizePhone_(p.phone)!==normalizePhone_(o['聯絡電話'])))throw new Error('聯絡電話不符');
     var ledger;try{ledger=JSON.parse(o['餐期更改紀錄']||'{}');}catch(e){ledger={};}
     ledger.events=ledger.events||[];
     var current=ledger.current||{},now=new Date(),date,meal,status;
@@ -1480,7 +1480,7 @@ function changeMeal_(p,staff){
     }
     current.updatedAt=now.toISOString();ledger.current=current;
     ledger.events.push({at:now.toISOString(),actor:staff?(actor.name||actor.username||'店家'):'客人',request:JSON.parse(JSON.stringify(current))});
-    var col=h.indexOf('餐期更改紀錄');if(col<0){col=h.length;sh.getRange(1,col+1).setValue('餐期更改紀錄');}
+    var col=h.indexOf('餐期更改紀錄');if(col<0){col=h.length;if(sh.getMaxColumns()<col+1)sh.insertColumnsAfter(sh.getMaxColumns(),col+1-sh.getMaxColumns());sh.getRange(1,col+1).setValue('餐期更改紀錄');}
     // Only the date/period and audit fields are written. Payment, totals, items and stock stay intact.
     if(status==='approved'){
       sh.getRange(idx+1,h.indexOf('送餐日期')+1).setValue(date);

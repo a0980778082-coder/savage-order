@@ -28,7 +28,8 @@
   }
 
   async function requestLinePay(orderNo){
-    const cutoff=cutoffReason(els.deliveryDate.value,(document.querySelector('input[name="mealPeriod"]:checked')||{}).value);
+    const accepted=state.pendingOrder||{};
+    const cutoff=cutoffReason(accepted.deliveryDate,accepted.mealPeriod);
     if(cutoff)throw new Error(cutoff+'；尚未啟動付款，請聯絡店家確認此訂單');
     if(!cfg.LINEPAY_API_URL) throw new Error('尚未設定 LINE Pay 付款服務');
     const r=await fetch(cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/request',{
@@ -723,6 +724,7 @@
     if(!/^[0-9+()\-\s]{8,20}$/.test(phone)){toast('請輸入正確的聯絡手機');$('historyPhone').focus();return}
     state.historyLoading=true;
     $('historyLookupBtn').disabled=true;$('historyLookupBtn').textContent='查詢中…';$('historyLoading').hidden=false;$('historyResults').hidden=true;
+    $('historyActionInput').value='customerHistory';
     $('historyPayloadInput').value=JSON.stringify({requestId:makeRequestId(),phone});
     $('historyForm').action=cfg.API_URL;$('historyForm').submit();
     setTimeout(()=>{if(state.historyLoading){state.historyLoading=false;$('historyLookupBtn').disabled=false;$('historyLookupBtn').textContent='查詢歷史訂單';$('historyLoading').hidden=true;toast('查詢逾時，請再試一次');}},20000);
@@ -822,14 +824,15 @@
     clearTimeout(mealChangeTimer);mealChangeTimer=setTimeout(()=>{ $('changeMealSubmit').disabled=false;toast('回應較慢，請查詢訂單確認結果，勿重複申請');},25000);
   }
   function finishMealChange(d){
-    if(d.requestId!==mealChangeRequest)return;clearTimeout(mealChangeTimer);
+    if(!mealChangeRequest||d.requestId!==mealChangeRequest)return;clearTimeout(mealChangeTimer);mealChangeRequest='';
     $('changeMealSubmit').disabled=false;
     if(!d.ok){toast(d.error||'更改失敗');return;}
     $('changeMealDialog').close();$('historyActionInput').value='customerHistory';
     alert(d.message);lookupHistory();startHistoryAutoRefresh();
   }
   $('changeMealSubmit').addEventListener('click',sendMealChange);
-  $('changeMealClose').addEventListener('click',()=>{$('changeMealDialog').close();startHistoryAutoRefresh();});
+  $('changeMealClose').addEventListener('click',()=>{$('changeMealDialog').close();});
+  $('changeMealDialog').addEventListener('close',startHistoryAutoRefresh);
   function startEditOrder(){
     if(!state.lastOrder)return;state.editingOrderNo=state.lastOrder.orderNo;state.originalPhone=state.lastOrder.phone;
     hideOrderSuccessView();$('editOrderNo').textContent=state.editingOrderNo;$('editBanner').hidden=false;$('submitBtn').textContent='更新原訂單';
