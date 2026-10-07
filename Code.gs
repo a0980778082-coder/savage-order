@@ -48,6 +48,11 @@ function doGet(e) {
 function doPost(e) {
   try {
     var action = e && e.parameter && e.parameter.action;
+    if (action === 'customerChangeMeal' || action === 'staffReviewMeal') {
+      var mc=JSON.parse(e.parameter.payload||'{}');
+      var result=changeMeal_(mc,action==='staffReviewMeal');
+      return postMessageResponse_({source:'savage-order-api',action:action,requestId:mc.requestId||'',ok:true,message:result.message});
+    }
     if (action === 'submitOrder') {
       var payload = JSON.parse((e.parameter && e.parameter.payload) || '{}');
       var result = submitOrder(payload);
@@ -84,7 +89,7 @@ function doPost(e) {
       var staffRows = getStaffOrders(orderPayload.token || '', orderPayload.filters || {});
       return postMessageResponse_({
         source:'savage-order-api', action:'staffOrders', requestId:orderPayload.requestId || '', ok:true,
-        rows:staffRows
+        rows:staffRows, mealRequests:getMealRequests_(orderPayload.token)
       });
     }
     if (action === 'updateOrderStatus') {
@@ -480,7 +485,7 @@ function getOrders_(filters) {
     });
 }
 
-function updateOrderStatusSecure(token,no,status,pos){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=ss.getSheetByName(CONFIG.sheets.orders),v=sh.getDataRange().getValues(),h=v[0],nc=h.indexOf('訂單編號'),sc=h.indexOf('訂單狀態'),pc=h.indexOf('POS已Key');for(var i=1;i<v.length;i++){if(v[i][nc]===no){if(status!==null&&status!==undefined)sh.getRange(i+1,sc+1).setValue(status);if(pos!==null&&pos!==undefined)sh.getRange(i+1,pc+1).setValue(pos);return true;}}throw new Error('找不到訂單');}
+function updateOrderStatusSecureCore_(token,no,status,pos){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=ss.getSheetByName(CONFIG.sheets.orders),v=sh.getDataRange().getValues(),h=v[0],nc=h.indexOf('訂單編號'),sc=h.indexOf('訂單狀態'),pc=h.indexOf('POS已Key');for(var i=1;i<v.length;i++){if(v[i][nc]===no){if(status!==null&&status!==undefined)sh.getRange(i+1,sc+1).setValue(status);if(pos!==null&&pos!==undefined)sh.getRange(i+1,pc+1).setValue(pos);return true;}}throw new Error('找不到訂單');}
 function updatePaymentStatusSecure_(token,no,paymentStatus){
   auth_(token,['staff','admin']);
   var allowed=['待核對','已付款','未付款','退款'];
@@ -645,7 +650,7 @@ function getCustomerHistory_(p){
   var items=sheetObjectsRaw_(ss.getSheetByName(CONFIG.sheets.items)),by={};
   items.forEach(function(x){var no=String(x['訂單編號']||'');if(!by[no])by[no]=[];by[no].push({name:String(x['品項']||''),category:String(x['分類']||''),price:Number(x['單價']||0),qty:Number(x['數量']||0),riceOption:String(x['飯量/客製']||'')});});
   orders.sort(function(a,b){var ad=a['建立時間'] instanceof Date?a['建立時間'].getTime():new Date(a['建立時間']).getTime()||0,bd=b['建立時間'] instanceof Date?b['建立時間'].getTime():new Date(b['建立時間']).getTime()||0;return bd-ad;});
-  return orders.slice(0,20).map(function(o){var dd=normalizeDeliveryDate_(o['送餐日期']);return {orderNo:String(o['訂單編號']||''),createdAt:formatHistoryDateTime_(o['建立時間']),deliveryDate:dd,deliveryDateDisplay:formatDeliveryDateDisplay_(dd),mealPeriod:String(o['餐期']||''),mall:String(o['百貨']||''),building:String(o['館別']||''),floor:String(o['樓層']||''),counterName:String(o['櫃位/品牌']||''),paymentMethod:String(o['付款方式']||''),paymentStatus:String(o['付款狀態']||''),status:String(o['訂單狀態']||''),total:Number(o['總金額']||0),note:String(o['訂單備註']||''),canCancel:!isTrue_(o['POS已Key'])&&!String(o['訂單狀態']||'').includes('取消'),cancelMessage:isTrue_(o['POS已Key'])?'已完成 Key 單，如需取消請聯絡店家':(String(o['訂單狀態']||'').includes('取消')?'此訂單已取消':''),items:by[String(o['訂單編號']||'')]||[]};});
+  return orders.slice(0,20).map(function(o){var dd=normalizeDeliveryDate_(o['送餐日期']);return {orderNo:String(o['訂單編號']||''),createdAt:formatHistoryDateTime_(o['建立時間']),deliveryDate:dd,deliveryDateDisplay:formatDeliveryDateDisplay_(dd),mealPeriod:String(o['餐期']||''),mall:String(o['百貨']||''),building:String(o['館別']||''),floor:String(o['樓層']||''),counterName:String(o['櫃位/品牌']||''),paymentMethod:String(o['付款方式']||''),paymentStatus:String(o['付款狀態']||''),status:String(o['訂單狀態']||''),total:Number(o['總金額']||0),note:String(o['訂單備註']||''),canCancel:!isTrue_(o['POS已Key'])&&!String(o['訂單狀態']||'').includes('取消'),cancelMessage:isTrue_(o['POS已Key'])?'已完成 Key 單，如需取消請聯絡店家':(String(o['訂單狀態']||'').includes('取消')?'此訂單已取消':''),canChangeMeal:!mealTerminal_(o)&&!mealRequest_(o).pending,mealChange:mealRequest_(o),items:by[String(o['訂單編號']||'')]||[]};});
 }
 function formatHistoryDateTime_(value){
   var d=value instanceof Date?value:new Date(value);if(isNaN(d.getTime()))return String(value||'');return Utilities.formatDate(d,CONFIG.timezone,'yyyy/MM/dd HH:mm');
@@ -920,7 +925,12 @@ p.lineDisplayName='';
     for(var i=1;i<ov.length;i++)if(String(ov[i][nc])===no){row=i;break;}
     if(row<0)throw new Error('找不到訂單');
     if(normalizePhone_(ov[row][pc])!==phone)throw new Error('聯絡電話不符，無法修改');
+    if(normalizeDeliveryDate_(ov[row][oh.indexOf('送餐日期')])!==normalizeDeliveryDate_(p.deliveryDate)||String(ov[row][oh.indexOf('餐期')])!==p.mealPeriod)throw new Error('更改餐期請使用「查詢我的訂單 → 更改餐期」，保留原付款紀錄');
+    if(!mealCutoff_(p.deliveryDate,p.mealPeriod).open)throw new Error('原餐期已截止，請聯絡店家');
+    if(String(ov[row][oh.indexOf('訂單狀態')])!=='新訂單')throw new Error('訂單已進入處理流程，請聯絡店家');
+    if(/已付|成功|完成/.test(String(ov[row][oh.indexOf('付款狀態')])))throw new Error('已付款訂單請聯絡店家調整餐點；餐期可使用「更改餐期」');
     // LINE 登入驗證目前停用：改單以訂單編號 + 原聯絡電話驗證，不再檢查 LINE User ID。
+    var mealAudit={};mealAudit['餐期更改紀錄']=ov[row][oh.indexOf('餐期更改紀錄')];if(mealRequest_(mealAudit).pending)throw new Error('餐期更改待店家確認，暫時無法修改訂單');
     if(isTrue_(ov[row][kc]))throw new Error('此訂單已完成 Key 單，請直接來電 04-22070520');
     var fixed=normalizeLocation_(ss,p.mall,p.building,p.floor);p.building=fixed.building;p.floor=fixed.floor;p.contactPhone=normalizePhone_(p.contactPhone);validateOrder_(p);
     var ish=ss.getSheetByName(CONFIG.sheets.items),iv=ish.getDataRange().getValues(),ih=iv[0],inc=ih.indexOf('訂單編號'),old=[];
@@ -1035,7 +1045,9 @@ function updateBusinessSettingsSecure_(token,settings){
   Object.keys(clean).forEach(function(k){setSetting_(k,clean[k]);});
   return getBusinessSettingsSecure_(token);
 }
-function getOrderAvailability_(deliveryDate,mealPeriod,mall){
+function getOrderAvailability_(deliveryDate,mealPeriod,mall,allowCutoff){
+  var timeCheck=mealCutoff_(deliveryDate,mealPeriod);
+  if(!allowCutoff&&!timeCheck.open)return timeCheck;
   var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId);ensureBusinessSettings_(ss);
   var s=settingsObject_(ss),status=String(s['營業狀態']||'OPEN');
   var date=normalizeDeliveryDate_(deliveryDate),start=normalizeDeliveryDate_(s['公告開始日期']),end=normalizeDeliveryDate_(s['公告結束日期']);
@@ -1188,8 +1200,8 @@ function upgradeToV39(){
 function tenantId_(ss){var s=settingsObject_(ss);return String(s.tenantId||'SAVAGE001');}
 function getDeliveryConfig_(token){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=ss.getSheetByName(CONFIG.sheets.mallGeo);if(!sh)return [];return sheetObjectsRaw_(sh).map(function(r){return {mall:String(r['百貨']||''),lat:Number(r['緯度']||0),lng:Number(r['經度']||0),radius:Number(r['抵達半徑公尺']||150)};}).filter(function(r){return r.mall;});}
 function saveDeliveryConfig_(token,p){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=createSheet_(ss,CONFIG.sheets.mallGeo,['tenantId','百貨','緯度','經度','抵達半徑公尺','更新時間']),mall=String(p.mall||'').trim(),lat=Number(p.lat),lng=Number(p.lng),radius=Math.max(50,Math.min(1000,Number(p.radius)||150));if(!mall||!isFinite(lat)||!isFinite(lng))throw new Error('百貨座標資料不完整');var v=sh.getDataRange().getValues(),h=v[0],mc=h.indexOf('百貨');for(var i=1;i<v.length;i++)if(String(v[i][mc])===mall){sh.getRange(i+1,1,1,h.length).setValues([[tenantId_(ss),mall,lat,lng,radius,new Date()]]);return true;}sh.appendRow([tenantId_(ss),mall,lat,lng,radius,new Date()]);return true;}
-function startDeliveryTrip_(token,mall,date){var u=auth_(token,['staff','admin']),ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=createSheet_(ss,CONFIG.sheets.deliveries,['tenantId','配送任務ID','送餐日期','百貨','狀態','開始時間','抵達時間','完成時間','操作人']);if(!mall||!date)throw new Error('請選擇百貨與送餐日期');var id='TRIP-'+Utilities.formatDate(new Date(),CONFIG.timezone,'yyyyMMdd-HHmmss');sh.appendRow([tenantId_(ss),id,date,mall,'配送中',new Date(),'','',u.name||u.username||'']);updateMallDeliveryOrders_(ss,id,date,mall,'配送中');return {tripId:id,mall:mall};}
-function arriveDeliveryTrip_(token,id){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),trip=findTripRow_(ss,id);if(!trip)throw new Error('找不到配送任務');trip.sheet.getRange(trip.row,trip.statusCol).setValue('已抵達百貨');trip.sheet.getRange(trip.row,trip.arriveCol).setValue(new Date());var n=updateMallDeliveryOrders_(ss,id,trip.date,trip.mall,'已抵達百貨');return {updated:n};}
+function startDeliveryTrip_Core_(token,mall,date){var u=auth_(token,['staff','admin']),ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=createSheet_(ss,CONFIG.sheets.deliveries,['tenantId','配送任務ID','送餐日期','百貨','狀態','開始時間','抵達時間','完成時間','操作人']);if(!mall||!date)throw new Error('請選擇百貨與送餐日期');var id='TRIP-'+Utilities.formatDate(new Date(),CONFIG.timezone,'yyyyMMdd-HHmmss');sh.appendRow([tenantId_(ss),id,date,mall,'配送中',new Date(),'','',u.name||u.username||'']);updateMallDeliveryOrders_(ss,id,date,mall,'配送中');return {tripId:id,mall:mall};}
+function arriveDeliveryTrip_Core_(token,id){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),trip=findTripRow_(ss,id);if(!trip)throw new Error('找不到配送任務');trip.sheet.getRange(trip.row,trip.statusCol).setValue('已抵達百貨');trip.sheet.getRange(trip.row,trip.arriveCol).setValue(new Date());var n=updateMallDeliveryOrders_(ss,id,trip.date,trip.mall,'已抵達百貨');return {updated:n};}
 function finishDeliveryTrip_(token,id){auth_(token,['staff','admin']);var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),trip=findTripRow_(ss,id);if(!trip)throw new Error('找不到配送任務');trip.sheet.getRange(trip.row,trip.statusCol).setValue('配送完成');trip.sheet.getRange(trip.row,trip.finishCol).setValue(new Date());return true;}
 function findTripRow_(ss,id){var sh=ss.getSheetByName(CONFIG.sheets.deliveries);if(!sh)return null;var v=sh.getDataRange().getValues(),h=v[0],ic=h.indexOf('配送任務ID'),dc=h.indexOf('送餐日期'),mc=h.indexOf('百貨'),sc=h.indexOf('狀態'),ac=h.indexOf('抵達時間'),fc=h.indexOf('完成時間');for(var i=1;i<v.length;i++)if(String(v[i][ic])===String(id))return {sheet:sh,row:i+1,date:normalizeDeliveryDate_(v[i][dc]),mall:String(v[i][mc]),statusCol:sc+1,arriveCol:ac+1,finishCol:fc+1};return null;}
 function updateMallDeliveryOrders_(ss,tripId,date,mall,status){var sh=ss.getSheetByName(CONFIG.sheets.orders),v=sh.getDataRange().getValues(),h=v[0],dc=h.indexOf('送餐日期'),mc=h.indexOf('百貨'),sc=h.indexOf('訂單狀態'),tc=h.indexOf('配送任務ID'),dsc=h.indexOf('配送狀態'),duc=h.indexOf('配送更新時間'),cc=h.indexOf('tenantId'),n=0;for(var i=1;i<v.length;i++){var od=normalizeDeliveryDate_(v[i][dc]),st=String(v[i][sc]||'');if(od===date&&String(v[i][mc])===mall&&!st.includes('取消')&&st!=='已送達'){if(tc>=0)sh.getRange(i+1,tc+1).setValue(tripId);if(dsc>=0)sh.getRange(i+1,dsc+1).setValue(status);if(duc>=0)sh.getRange(i+1,duc+1).setValue(new Date());if(cc>=0&&!v[i][cc])sh.getRange(i+1,cc+1).setValue(tenantId_(ss));if(status==='配送中'||status==='已抵達百貨')sh.getRange(i+1,sc+1).setValue(status);n++;}}return n;}
@@ -1404,3 +1416,84 @@ function mallOrderAvailability_(ss,date,mealPeriod,mall) {
   }
   return {open:true,message:''};
 }
+
+
+// Meal cutoff is always based on the selected delivery day in Asia/Taipei.
+function mealCutoff_(date,meal,now){
+  date=String(date||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||['午餐','晚餐'].indexOf(meal)<0)return {open:false,message:'請選擇正確配送日期與餐期'};
+  var at=new Date(date+'T'+(meal==='午餐'?'11:40':'16:00')+':00+08:00');
+  if(isNaN(at.getTime())||Utilities.formatDate(at,CONFIG.timezone,'yyyy-MM-dd')!==date)return {open:false,message:'送餐日期格式不正確'};
+  return (now||new Date()).getTime()>=at.getTime()?{open:false,message:date+' '+meal+'已截止，請選擇其他日期或餐期'}:{open:true,message:''};
+}
+function mealTerminal_(o){return /取消|已完成|製作完成|已出餐|已取餐|已送達|配送中|抵達|配送完成/.test(String(o['訂單狀態']||'')+' '+String(o['配送狀態']||''));}
+function mealRequest_(o){
+  var x;try{x=JSON.parse(o['餐期更改紀錄']||'{}');}catch(e){x={};}
+  var r=x.current||{};
+  return {pending:r.status==='pending',requestId:r.id||'',targetDate:r.date||'',targetMeal:r.meal||'',message:r.status==='pending'?'申請改為 '+r.date+' '+r.meal+'，待店家確認，目前仍依原餐期安排':r.status==='approved'?'已改為 '+r.date+' '+r.meal:r.status==='rejected'?'餐期更改未獲同意，維持原餐期'+(r.reason?'：'+r.reason:''):''};
+}
+function getMealRequests_(token){
+  auth_(token,['staff','admin']);
+  var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId);
+  return sheetObjectsRaw_(ss.getSheetByName(CONFIG.sheets.orders)).filter(function(o){return mealRequest_(o).pending;}).map(function(o){return {orderNo:String(o['訂單編號']),date:normalizeDeliveryDate_(o['送餐日期']),meal:o['餐期'],mall:o['百貨'],counter:o['櫃位/品牌'],name:o['聯絡人姓名'],request:mealRequest_(o)};});
+}
+function mealChangeDecision_(o,date,meal,now){
+  if(mealTerminal_(o))throw new Error('訂單已出餐、配送或結束，請來電 04-22070520');
+  return String(o['訂單狀態'])==='新訂單'&&!isTrue_(o['POS已Key'])&&mealCutoff_(normalizeDeliveryDate_(o['送餐日期']),String(o['餐期']),now).open&&mealCutoff_(date,meal,now).open;
+}
+function changeMeal_(p,staff){
+  var actor=staff?auth_(p.token||'',['staff','admin']):null;
+  var lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    var ss=SpreadsheetApp.openById(CONFIG.spreadsheetId),sh=ss.getSheetByName(CONFIG.sheets.orders),v=sh.getDataRange().getValues(),h=v[0],idx=-1;
+    for(var i=1;i<v.length;i++)if(String(v[i][h.indexOf('訂單編號')])===String(p.orderNo)){idx=i;break;}
+    if(idx<0)throw new Error('找不到訂單');
+    var row=v[idx],o={};h.forEach(function(k,i){o[k]=row[i];});
+    if(!staff&&(!normalizePhone_(p.phone)||normalizePhone_(p.phone)!==normalizePhone_(o['聯絡電話'])))throw new Error('聯絡電話不符');
+    var ledger;try{ledger=JSON.parse(o['餐期更改紀錄']||'{}');}catch(e){ledger={};}
+    ledger.events=ledger.events||[];
+    var current=ledger.current||{},now=new Date(),date,meal,status;
+    if(staff){
+      if(current.id!==p.changeId||current.status!=='pending')throw new Error('此申請已處理或已更新，請重新整理');
+      if(p.decision!=='approve'&&p.decision!=='reject')throw new Error('請選擇同意或無法更改');
+      date=current.date;meal=current.meal;status=p.decision==='approve'?'approved':'rejected';
+      if(status==='approved'){
+        if(mealTerminal_(o))throw new Error('訂單已出餐、配送或結束，不能更改');
+        if(normalizeDeliveryDate_(o['送餐日期'])!==current.fromDate||String(o['餐期'])!==current.fromMeal)throw new Error('原餐期已有異動，請重新確認');
+        var available=getOrderAvailability_(date,meal,o['百貨'],true);
+        if(!available.open)throw new Error(available.message);
+        if(date<Utilities.formatDate(now,CONFIG.timezone,'yyyy-MM-dd'))throw new Error('不能改成過去日期');
+      }
+      current.status=status;current.reason=String(p.reason||'').slice(0,200);
+    }else{
+      if(current.id===p.requestId)return {message:mealRequest_(o).message};
+      if(current.status==='pending')throw new Error('已有待確認申請，請等候店家處理');
+      if(!/^[a-zA-Z0-9-]{8,100}$/.test(String(p.requestId||'')))throw new Error('申請資料不完整');
+      date=String(p.deliveryDate||'');meal=String(p.mealPeriod||'');
+      // Validate calendar date and period even when the cutoff needs staff review.
+      var check=mealCutoff_(date,meal,new Date(0));if(!check.open)throw new Error(check.message);
+      if(date<Utilities.formatDate(now,CONFIG.timezone,'yyyy-MM-dd'))throw new Error('不能選擇過去日期');
+      if(date===normalizeDeliveryDate_(o['送餐日期'])&&meal===o['餐期'])throw new Error('新餐期與原餐期相同');
+      var available=getOrderAvailability_(date,meal,o['百貨'],true);if(!available.open)throw new Error(available.message);
+      status=mealChangeDecision_(o,date,meal,now)?'approved':'pending';
+      current={id:p.requestId,date:date,meal:meal,fromDate:normalizeDeliveryDate_(o['送餐日期']),fromMeal:String(o['餐期']),status:status};
+    }
+    current.updatedAt=now.toISOString();ledger.current=current;
+    ledger.events.push({at:now.toISOString(),actor:staff?(actor.name||actor.username||'店家'):'客人',request:JSON.parse(JSON.stringify(current))});
+    var col=h.indexOf('餐期更改紀錄');if(col<0){col=h.length;if(sh.getMaxColumns()<col+1)sh.insertColumnsAfter(sh.getMaxColumns(),col+1-sh.getMaxColumns());sh.getRange(1,col+1).setValue('餐期更改紀錄');}
+    // Only the date/period and audit fields are written. Payment, totals, items and stock stay intact.
+    if(status==='approved'){
+      sh.getRange(idx+1,h.indexOf('送餐日期')+1).setValue(date);
+      sh.getRange(idx+1,h.indexOf('餐期')+1).setValue(meal);
+    }
+    sh.getRange(idx+1,col+1).setValue(JSON.stringify(ledger));SpreadsheetApp.flush();
+    o['餐期更改紀錄']=JSON.stringify(ledger);
+    return {message:mealRequest_(o).message};
+  }finally{lock.releaseLock();}
+}
+
+function updateOrderStatusSecure(token,no,status,pos){var lock=LockService.getScriptLock();lock.waitLock(20000);try{return updateOrderStatusSecureCore_(token,no,status,pos);}finally{lock.releaseLock();}}
+
+function startDeliveryTrip_(token,mall,date){var lock=LockService.getScriptLock();lock.waitLock(20000);try{return startDeliveryTrip_Core_(token,mall,date);}finally{lock.releaseLock();}}
+
+function arriveDeliveryTrip_(token,id){var lock=LockService.getScriptLock();lock.waitLock(20000);try{return arriveDeliveryTrip_Core_(token,id);}finally{lock.releaseLock();}}

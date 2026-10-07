@@ -327,3 +327,14 @@ body.focus-mode .cancel-order-btn{
     font-size:14px;
   }
 }
+
+/* Meal change controls remain easy to use on narrow phone screens. */
+#changeMealDialog{width:calc(100% - 32px);max-width:440px;max-height:85vh;overflow:auto;box-sizing:border-box;padding:24px;border:0;border-radius:18px;box-shadow:0 16px 60px #0004;color:#202620;background:#fff}
+#changeMealDialog::backdrop{background:#0007}
+#changeMealDialog .field{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+#changeMealDialog input,#changeMealDialog select{width:100%;box-sizing:border-box;min-height:48px;font:inherit;padding:10px;border:1px solid #cdd5cd;border-radius:8px}
+#changeMealDialog button,#mealRequests button{min-height:48px;padding:10px 16px;margin:4px 0;font:inherit;cursor:pointer;border:1px solid #bac9bb;border-radius:9px}
+#changeMealSubmit{width:100%}
+#mealRequests{padding:16px;background:#fff8e7;border:1px solid #e2c780;border-radius:16px;margin-bottom:16px}
+#mealRequests article{padding:16px;margin-top:12px;background:#fff;border-radius:10px;overflow-wrap:anywhere}
+#mealRequests p{line-height:1.6}

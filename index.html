@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="styles.css?v=411">
+  <link rel="stylesheet" href="styles.css?v=416">
   <link rel="manifest" href="./manifest.webmanifest?v=401">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -81,9 +81,9 @@
       </div>
 
       <fieldset class="choice-fieldset">
-        <legend>餐期</legend>
+        <legend>餐期（請主動選擇）</legend><p>配送當日午餐 11:40 截止、晚餐 16:00 截止；可選其他開放日期預訂。</p>
         <div class="segmented">
-          <label><input type="radio" name="mealPeriod" value="午餐" checked><span>午餐</span></label>
+          <label><input type="radio" name="mealPeriod" value="午餐"><span>午餐</span></label>
           <label><input type="radio" name="mealPeriod" value="晚餐"><span>晚餐</span></label>
         </div>
       </fieldset>
@@ -321,8 +321,9 @@
     <input type="hidden" name="payload" id="historyPayloadInput">
   </form>
 
+<dialog id="changeMealDialog"><h2>更改配送餐期</h2><p id="changeMealOriginal"></p><label class="field">新配送日期<input id="changeMealDate" type="date" required></label><label class="field">新餐期<select id="changeMealPeriod"><option value="">請選擇</option><option>午餐</option><option>晚餐</option></select></label><p>未製作且原、新餐期均未截止，可直接更改。其他情況需店家確認；核准前仍依原餐期安排，不需重新付款。</p><button type="button" id="changeMealSubmit" class="primary-button">確認更改</button><button type="button" id="changeMealClose">返回</button><p>急件請來電 <a href="tel:0422070520">04-22070520</a></p></dialog>
 <script src="config.js?v=407"></script>
 <script src="pwa.js?v=412"></script>
-<script src="app.js?v=413"></script>
+<script src="app.js?v=416"></script>
 </body>
 </html>
