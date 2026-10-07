@@ -28,6 +28,8 @@
   }
 
   async function requestLinePay(orderNo){
+    const cutoff=cutoffReason(els.deliveryDate.value,(document.querySelector('input[name="mealPeriod"]:checked')||{}).value);
+    if(cutoff)throw new Error(cutoff+'；尚未啟動付款，請聯絡店家確認此訂單');
     if(!cfg.LINEPAY_API_URL) throw new Error('尚未設定 LINE Pay 付款服務');
     const r=await fetch(cfg.LINEPAY_API_URL.replace(/\/$/,'')+'/linepay/request',{
       method:'POST',
@@ -129,17 +131,24 @@
     const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
     return `${y}-${m}-${d}`;
   }
+  function taipeiToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+  function cutoffReason(date,meal,now=Date.now()){
+    if(!date)return '請選擇送餐日期';
+    if(!['午餐','晚餐'].includes(meal))return '請選擇午餐或晚餐';
+    const cutoff=Date.parse(date+'T'+(meal==='午餐'?'11:40':'16:00')+':00+08:00');
+    if(!Number.isFinite(cutoff))return '送餐日期格式不正確';
+    return now>=cutoff?`${date} ${meal}已截止，請選擇其他日期或餐期`:'';
+  }
   function setupDeliveryDate(){
-    const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-    const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
-    els.deliveryDate.min=localDateValue(today);
-    if(!els.deliveryDate.value)els.deliveryDate.value=localDateValue(now.getHours()>=20?tomorrow:today);
+    els.deliveryDate.min=taipeiToday();
+    if(!els.deliveryDate.value)els.deliveryDate.value=taipeiToday();
     updateDeliveryDateHint();
+    setInterval(applyOrderingAvailability,1000);
   }
   function updateDeliveryDateHint(){
     const value=els.deliveryDate.value;if(!value)return;
-    const today=localDateValue(new Date()),tomorrowDate=new Date();tomorrowDate.setDate(tomorrowDate.getDate()+1);
-    const tomorrow=localDateValue(tomorrowDate);
+    const today=taipeiToday(),tomorrowDate=new Date(today+'T12:00:00+08:00');tomorrowDate.setTime(tomorrowDate.getTime()+86400000);
+    const tomorrow=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(tomorrowDate);
     $('deliveryDateHint').textContent=value===today?'今天送達櫃上':value===tomorrow?'明天送達櫃上':'請確認此日期送達櫃上';
   }
   function displayDeliveryDate(value){
@@ -438,6 +447,8 @@
     };
   }
   function orderingBlockReason(){
+    const cutoff=cutoffReason(els.deliveryDate.value,(document.querySelector('input[name="mealPeriod"]:checked')||{}).value);
+    if(cutoff)return cutoff;
     const b=effectiveBusinessState();
     const mallReason=mallOrderingReason();
     if(!b.active)return mallReason;
@@ -494,15 +505,20 @@
     finally{mallOrderingRefreshing=false;}
   }
   function applyOrderingAvailability(){
+    document.querySelectorAll('input[name="mealPeriod"]').forEach(r=>{
+      const closed=!!cutoffReason(els.deliveryDate.value,r.value);
+      r.disabled=closed;
+      r.nextElementSibling.textContent=r.value+(closed?'（已截止）':'');
+    });
     const reason=orderingBlockReason();
     const cartEmpty=els.submitBtn.dataset.cartEmpty!=='false';
     els.submitBtn.disabled=!!reason||cartEmpty||state.submitting;
     els.submitBtn.classList.toggle('ordering-closed',!!reason);
     if(reason){
-      els.submitBtn.textContent='此餐期暫停接單';
+      els.submitBtn.textContent=reason==='請選擇午餐或晚餐'?'請先選擇餐期':'此餐期暫停接單';
       els.businessStatusBanner.hidden=false;
       els.businessStatusBanner.classList.add('closed');
-      els.businessStatusTitle.textContent='暫停接單';
+      els.businessStatusTitle.textContent=reason==='請選擇午餐或晚餐'?'請確認餐期':'此餐期無法訂購';
       els.businessStatusMessage.textContent=reason;
     }else{
       if(!state.submitting)els.submitBtn.textContent=state.editingOrderNo?'更新訂單':'送出訂單';
@@ -589,6 +605,7 @@
     const meal=document.querySelector('input[name="mealPeriod"]:checked').value;
     const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n\n確認後送出訂單？`;
     if(!window.confirm(confirmText))return;
+    if(!validate())return;
     if(!state.requestId)state.requestId=makeRequestId();
     state.handledOrderNo='';
     state.submitting=true;els.submitBtn.disabled=true;els.submitBtn.textContent='送出中…';
@@ -606,6 +623,7 @@
   async function handleSubmitResponse(event){
     if(!event.data||event.data.source!=='savage-order-api')return;
     const d=event.data;
+    if(d.action==='customerChangeMeal'){finishMealChange(d);return;}
     if(d.action==='spinReward'){handleSpinResponse(d);return}
     if(d.action==='customerHistory'){handleHistoryResponse(d);return}
     if(d.action==='customerCancelOrder'){handleCustomerCancelResponse(d);return}
@@ -719,13 +737,15 @@
       const items=(o.items||[]).map(x=>`<li><span>${esc(x.name)} ×${Number(x.qty||0)}</span>${x.riceOption?`<small>${esc(x.riceOption)}</small>`:''}</li>`).join('');
       return `<article class="history-order-card">
         <div class="history-order-top"><div><strong>${esc(o.deliveryDateDisplay||o.deliveryDate||'')}</strong><small>${esc(o.mealPeriod||'')}｜${esc(o.mall||'')} ${esc(o.building||'')} ${esc(o.floor||'')}</small></div><span class="history-status">${esc(o.status||'')}</span></div>
-        <div class="history-counter">${esc(o.counterName||'')}｜訂單 ${esc(o.orderNo||'')}</div>
+        <div class="history-counter">${o.mealChange?esc(o.mealChange.message):''}</div><div class="history-counter">${esc(o.counterName||'')}｜訂單 ${esc(o.orderNo||'')}</div>
         <ul>${items}</ul>
-        <div class="history-order-bottom"><div><small>${esc(o.paymentMethod||'')}｜${esc(o.paymentStatus||'')}</small><strong>$${Number(o.total||0).toLocaleString('zh-TW')}</strong></div><div class="history-actions"><button type="button" class="history-reorder-button" data-history-reorder="${i}">再訂一次</button>${o.canCancel?`<button type="button" class="history-cancel-button" data-history-cancel="${i}">取消訂單</button>`:(String(o.status||'').includes('取消')?'':`<small class="history-cancel-note">${esc(o.cancelMessage||'已進入處理流程，如需取消請聯絡店家')}</small>`)}</div></div>
+        <div class="history-order-bottom"><div><small>${esc(o.paymentMethod||'')}｜${esc(o.paymentStatus||'')}</small><strong>$${Number(o.total||0).toLocaleString('zh-TW')}</strong></div><div class="history-actions">${o.canChangeMeal?`<button type="button" class="history-reorder-button" data-history-change="${i}">更改餐期</button>`:''}<button type="button" class="history-reorder-button" data-history-reorder="${i}">再訂一次</button>${o.canCancel?`<button type="button" class="history-cancel-button" data-history-cancel="${i}">取消訂單</button>`:(String(o.status||'').includes('取消')?'':`<small class="history-cancel-note">${esc(o.cancelMessage||'已進入處理流程，如需取消請聯絡店家')}</small>`)}</div></div>
       </article>`;
     }).join('');
   }
   function onHistoryResultClick(e){
+    const changeBtn=e.target.closest('[data-history-change]');
+    if(changeBtn){openMealChange(Number(changeBtn.dataset.historyChange));return;}
     const cancelBtn=e.target.closest('[data-history-cancel]');
     if(cancelBtn){cancelHistoryOrder(Number(cancelBtn.dataset.historyCancel));return}
     const btn=e.target.closest('[data-history-reorder]');if(!btn)return;
@@ -750,6 +770,7 @@
   }
   function reorderFromHistory(index){
     const order=state.historyOrders[index];if(!order)return;
+    document.querySelectorAll('input[name="mealPeriod"]').forEach(r=>r.checked=false);
     state.cart.clear();
     els.menuRoot.querySelectorAll('[data-qty]').forEach(el=>el.textContent='0');
     els.menuRoot.querySelectorAll('[data-options]').forEach(el=>{el.innerHTML='';el.hidden=true});
@@ -780,6 +801,35 @@
   }
 
 
+  let mealChangeOrder=null,mealChangeRequest='',mealChangeTimer;
+  function openMealChange(index){
+    mealChangeOrder=state.historyOrders[index];if(!mealChangeOrder)return;
+    stopHistoryAutoRefresh();
+    $('changeMealOriginal').textContent=`原餐期：${mealChangeOrder.deliveryDate} ${mealChangeOrder.mealPeriod}`;
+    $('changeMealDate').min=taipeiToday();$('changeMealDate').value=mealChangeOrder.deliveryDate;
+    $('changeMealPeriod').value='';$('changeMealSubmit').disabled=false;
+    $('changeMealDialog').showModal();
+  }
+  function sendMealChange(){
+    if(!mealChangeOrder||!$('changeMealDate').value||!$('changeMealPeriod').value){toast('請選擇新的配送日期及餐期');return;}
+    const date=$('changeMealDate').value,meal=$('changeMealPeriod').value;
+    if(date<taipeiToday()){toast('不能選擇過去日期');return;}
+    if(!confirm(`申請改為 ${date} ${meal}？\n若需店家確認，核准前仍依原餐期安排。原付款紀錄會保留。`))return;
+    mealChangeRequest=makeRequestId();$('changeMealSubmit').disabled=true;
+    $('historyActionInput').value='customerChangeMeal';
+    $('historyPayloadInput').value=JSON.stringify({requestId:mealChangeRequest,orderNo:mealChangeOrder.orderNo,phone:$('historyPhone').value,deliveryDate:date,mealPeriod:meal});
+    $('historyForm').action=cfg.API_URL;$('historyForm').submit();
+    clearTimeout(mealChangeTimer);mealChangeTimer=setTimeout(()=>{ $('changeMealSubmit').disabled=false;toast('回應較慢，請查詢訂單確認結果，勿重複申請');},25000);
+  }
+  function finishMealChange(d){
+    if(d.requestId!==mealChangeRequest)return;clearTimeout(mealChangeTimer);
+    $('changeMealSubmit').disabled=false;
+    if(!d.ok){toast(d.error||'更改失敗');return;}
+    $('changeMealDialog').close();$('historyActionInput').value='customerHistory';
+    alert(d.message);lookupHistory();startHistoryAutoRefresh();
+  }
+  $('changeMealSubmit').addEventListener('click',sendMealChange);
+  $('changeMealClose').addEventListener('click',()=>{$('changeMealDialog').close();startHistoryAutoRefresh();});
   function startEditOrder(){
     if(!state.lastOrder)return;state.editingOrderNo=state.lastOrder.orderNo;state.originalPhone=state.lastOrder.phone;
     hideOrderSuccessView();$('editOrderNo').textContent=state.editingOrderNo;$('editBanner').hidden=false;$('submitBtn').textContent='更新原訂單';

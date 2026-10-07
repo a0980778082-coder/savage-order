@@ -5,6 +5,8 @@ const fs=require('node:fs');
 const source=fs.readFileSync('Code.gs','utf8');
 const today='2026-09-29';
 const tomorrow='2026-09-30';
+class FixedDate extends Date { constructor(...args){super(...(args.length?args:['2026-09-29T09:00:00+08:00']));} static now(){return new FixedDate().getTime();} }
+const dateString=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 const headers=['送餐日期','百貨','午餐開放','晚餐開放','暫停原因','更新時間','操作人'];
 function setup(){
  let held=false,authCalls=0;
@@ -12,7 +14,7 @@ function setup(){
  function makeSheet(data){return {data,getDataRange(){return {getValues:()=>this.data,getDisplayValues:()=>this.data.map(r=>r.map(String))};},getRange(row,col,rows=1,cols=1){return {setValues:values=>{values.forEach((r,i)=>{this.data[row-1+i]??=[];r.forEach((v,j)=>this.data[row-1+i][col-1+j]=v);});}};},appendRow(row){this.data.push(row);}};}
  const ss={getSheetByName:name=>sheets.get(name)||null};
  sheets.set('百貨樓層',makeSheet([['百貨','館別','樓層'],['中友百貨','A棟','1F'],['中友百貨','B棟','1F'],['台中大遠百','本館','1F']]));
- const ctx=vm.createContext({console,Date,SpreadsheetApp:{openById:()=>ss,flush(){}},Utilities:{formatDate:()=>today},LockService:{getScriptLock:()=>({waitLock(){assert.equal(held,false);held=true;},releaseLock(){held=false;}})}});
+ const ctx=vm.createContext({console,Date:FixedDate,SpreadsheetApp:{openById:()=>ss,flush(){}},Utilities:{formatDate:dateString},LockService:{getScriptLock:()=>({waitLock(){assert.equal(held,false);held=true;},releaseLock(){held=false;}})}});
  vm.runInContext(source,ctx);
  ctx.auth_=(token,roles)=>{authCalls++;assert.ok(roles.includes('staff'));if(token!=='valid')throw Error('登入失效');return {name:'測試店員'};};
  ctx.ensureBusinessSettings_=()=>{};
@@ -76,7 +78,7 @@ test('customer banner and button recover when switching date or mall',()=>{
  const els={deliveryDate:element(),mall:element(),submitBtn:element(),businessStatusBanner:element(),businessStatusTitle:element(),businessStatusMessage:element()};
  els.deliveryDate.value=today;els.mall.value='中友百貨';
  const state={settings:{},mallOrdering:[{date:today,mall:'中友百貨',lunchOpen:false,dinnerOpen:true,reason:'額滿'}],submitting:false};
- const ctx=vm.createContext({state,els,document:{querySelector:()=>({value:'午餐'})},localDateValue:()=>today,console});
+ const ctx=vm.createContext({state,els,Date:FixedDate,cutoffReason:()=>'',document:{querySelector:()=>({value:'午餐'}),querySelectorAll:()=>[]},localDateValue:()=>today,console});
  vm.runInContext(chunk,ctx);ctx.applyOrderingAvailability();assert.equal(els.submitBtn.disabled,true);assert.match(els.businessStatusMessage.textContent,/額滿/);
  els.mall.value='台中大遠百';ctx.applyOrderingAvailability();assert.equal(els.submitBtn.disabled,false);assert.equal(els.businessStatusBanner.hidden,true);
  els.mall.value='中友百貨';els.deliveryDate.value=tomorrow;ctx.applyOrderingAvailability();assert.equal(els.submitBtn.disabled,false);

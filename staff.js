@@ -206,6 +206,18 @@
   }
   function showStaff() { $('loginView').hidden = true; $('staffView').hidden = false; }
 
+  let mealRequests=[];
+  function renderMealRequests(rows){
+    mealRequests=rows;const box=$('mealRequests');box.hidden=!rows.length;
+    box.innerHTML='<h2>待確認餐期更改（'+rows.length+'）</h2>'+rows.map((r,i)=>`<article class="history-order-card"><strong>${esc(r.mall)} ${esc(r.counter)}｜${esc(r.name)}</strong><p>${esc(r.orderNo)}<br>原：${esc(r.date)} ${esc(r.meal)}<br>申請：${esc(r.request.targetDate)} ${esc(r.request.targetMeal)}</p><button data-meal-review="${i}" data-decision="approve">同意更改</button> <button data-meal-review="${i}" data-decision="reject">無法更改</button></article>`).join('');
+  }
+  $('mealRequests').addEventListener('click',async e=>{
+    const btn=e.target.closest('[data-meal-review]');if(!btn)return;
+    const r=mealRequests[Number(btn.dataset.mealReview)],approve=btn.dataset.decision==='approve';
+    if(!r||!confirm(`${approve?'同意':'拒絕'} ${r.orderNo} 改至 ${r.request.targetDate} ${r.request.targetMeal}？${approve?'請確認廚房及配送可調整；若已列印請同步通知人員。':''}`))return;
+    const reason=approve?'':prompt('無法更改的原因（客人會看到）','');if(reason===null)return;
+    setBlocking(true);try{await apiPost('staffReviewMeal',{token,orderNo:r.orderNo,changeId:r.request.requestId,decision:btn.dataset.decision,reason});await loadOrders();showToast('已處理餐期更改');}catch(err){showToast(err.message,'error');}finally{setBlocking(false);}
+  });
   async function loadOrders() {
     if (!token) return;
     $('loading').hidden = false; $('refreshBtn').disabled = true;
@@ -213,6 +225,7 @@
       // 後端只負責抓今天全部訂單，篩選由手機端即時完成，切換更快。
       const r = await apiPost('staffOrders', {token, filters:{deliveryDate:selectedDeliveryDate||localDateValue(new Date())}});
       allRows = normalizeOrderRows(r.rows || []);
+      renderMealRequests(r.mealRequests||[]);
       announceNewOrders(allRows);
       renderMallChips(); render();
       $('lastUpdated').textContent = '更新：' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});

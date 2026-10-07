@@ -1,10 +1,10 @@
-const CACHE = 'savage-order-v413';
+const CACHE = 'savage-order-v415';
 
 const ASSETS = [
   './',
   './index.html',
   './styles.css?v=411',
-  './app.js?v=413',
+  './app.js?v=415',
   './pwa.js?v=412',
   './config.js?v=407',
   './manifest.webmanifest?v=401'
