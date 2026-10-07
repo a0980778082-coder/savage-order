@@ -77,3 +77,11 @@ test('frontend and backend agree across cutoffs and midnight',()=>{
  const front=vm.createContext({Date});vm.runInContext(source.slice(start,end),front);
  for(const time of ['2026-10-07T11:39:59+08:00','2026-10-07T11:40:00+08:00','2026-10-07T16:00:00+08:00','2026-10-08T00:00:00+08:00'])for(const date of ['2026-10-07','2026-10-08'])for(const meal of ['午餐','晚餐'])assert.equal(!front.cutoffReason(date,meal,new Date(time).getTime()),ctx.mealCutoff_(date,meal,new Date(time)).open);
 });
+test('initial delivery date advances after dinner cutoff without preselecting a meal',()=>{
+ const source=fs.readFileSync('app.js','utf8');const start=source.indexOf('  function taipeiToday('),end=source.indexOf('  function updateDeliveryDateHint()',start);
+ for(const [time,expected] of [['2026-10-07T15:59:59+08:00','2026-10-07'],['2026-10-07T16:00:00+08:00','2026-10-08'],['2026-10-08T00:00:00+08:00','2026-10-08']]){
+  class Clock extends Date{constructor(...a){super(...(a.length?a:[time]));}static now(){return new Clock().getTime();}}
+  const els={deliveryDate:{value:''}};const front=vm.createContext({Date:Clock,Intl,els,updateDeliveryDateHint(){},setInterval(){},applyOrderingAvailability(){}});
+  vm.runInContext(source.slice(start,end),front);front.setupDeliveryDate();assert.equal(els.deliveryDate.value,expected);
+ }
+});

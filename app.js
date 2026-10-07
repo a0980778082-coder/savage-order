@@ -141,8 +141,10 @@
     return now>=cutoff?`${date} ${meal}已截止，請選擇其他日期或餐期`:'';
   }
   function setupDeliveryDate(){
-    els.deliveryDate.min=taipeiToday();
-    if(!els.deliveryDate.value)els.deliveryDate.value=taipeiToday();
+    const today=taipeiToday();els.deliveryDate.min=today;
+    const nextDay=new Date(today+'T12:00:00+08:00');nextDay.setTime(nextDay.getTime()+86400000);
+    const tomorrow=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(nextDay);
+    if(!els.deliveryDate.value)els.deliveryDate.value=cutoffReason(today,'晚餐')?tomorrow:today;
     updateDeliveryDateHint();
     setInterval(applyOrderingAvailability,1000);
   }
@@ -448,6 +450,7 @@
     };
   }
   function orderingBlockReason(){
+    if(!document.querySelector('input[name="mealPeriod"]:checked')&&cutoffReason(els.deliveryDate.value,'午餐')&&cutoffReason(els.deliveryDate.value,'晚餐'))return '此配送日期的午晚餐都已截止，請選擇其他日期預訂';
     const cutoff=cutoffReason(els.deliveryDate.value,(document.querySelector('input[name="mealPeriod"]:checked')||{}).value);
     if(cutoff)return cutoff;
     const b=effectiveBusinessState();
