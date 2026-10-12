@@ -587,9 +587,13 @@
     });
     return rows;
   }
+  function buildOrderNote(){
+    const utensils=$('utensils')?.value||'';
+    return [utensils?'餐具需求：'+utensils:'',$('note').value.trim()].filter(Boolean).join('\n');
+  }
   function buildPayload(){
     const selectedPayment=document.querySelector('input[name="paymentMethod"]:checked').value;
-    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:normalizePhone($('contactPhone').value),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:$('note').value.trim(),items:buildOrderItems()};
+    return {clientRequestId:state.requestId,orderNo:state.editingOrderNo,originalPhone:state.originalPhone,deliveryDate:els.deliveryDate.value,mall:els.mall.value,building:els.building.value,floor:els.floor.value,counterName:$('counterName').value.trim(),contactName:$('contactName').value.trim(),contactPhone:normalizePhone($('contactPhone').value),mealPeriod:document.querySelector('input[name="mealPeriod"]:checked').value,paymentMethod:selectedPayment==='LINE Pay'?'線上付款':selectedPayment,invoiceType:document.querySelector('input[name="invoiceType"]:checked').value,invoiceCarrier:els.invoiceCarrier.value.trim(),couponCode:$('couponCode').value.trim().toUpperCase(),sideDishWish:$('sideDishWish').value.trim(),note:buildOrderNote(),items:buildOrderItems()};
   }
   function makeRequestId(){
     if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
@@ -606,8 +610,9 @@
   }
   function submitOrder(){
     if(state.submitting||!validate())return;
+    if(buildOrderNote().length>300){toast('餐具需求與訂單備註合計請勿超過300字');$('note').focus();return}
     const meal=document.querySelector('input[name="mealPeriod"]:checked').value;
-    const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n\n確認後送出訂單？`;
+    const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n餐具：${$('utensils')?.value||'未選擇'}\n\n確認後送出訂單？`;
     if(!window.confirm(confirmText))return;
     if(!validate())return;
     if(!state.requestId)state.requestId=makeRequestId();
