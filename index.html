@@ -180,7 +180,8 @@
         <small>優惠碼須與本次聯絡電話相同，且每組只能使用一次。</small>
       </label>
 
-      <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣、餐具需求或其他備註"></textarea></label>
+      <label class="field full"><span>餐具需求（選填）</span><select id="utensils"><option value="">未選擇</option><option value="需要餐具">需要餐具</option><option value="不需要餐具">不需要餐具</option></select></label>
+      <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣或其他備註"></textarea></label>
     </section>
   </main>
 
@@ -324,6 +325,6 @@
 <dialog id="changeMealDialog"><h2>更改配送餐期</h2><p id="changeMealOriginal"></p><label class="field">新配送日期<input id="changeMealDate" type="date" required></label><label class="field">新餐期<select id="changeMealPeriod"><option value="">請選擇</option><option>午餐</option><option>晚餐</option></select></label><p>未製作且原、新餐期均未截止，可直接更改。其他情況需店家確認；核准前仍依原餐期安排，不需重新付款。</p><button type="button" id="changeMealSubmit" class="primary-button">確認更改</button><button type="button" id="changeMealClose">返回</button><p>急件請來電 <a href="tel:0422070520">04-22070520</a></p></dialog>
 <script src="config.js?v=407"></script>
 <script src="pwa.js?v=412"></script>
-<script src="app.js?v=417"></script>
+<script src="app.js?v=418"></script>
 </body>
 </html>
