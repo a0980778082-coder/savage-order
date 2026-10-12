@@ -144,7 +144,10 @@
         <small>優惠碼須與本次聯絡電話相同，且每組只能使用一次。</small>
       </label>
 
-      <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣、餐具需求或其他備註"></textarea></label>
+      <label class="field full"><span>餐具需求（選填）</span>
+        <select id="utensils"><option value="">未選擇</option><option value="需要餐具">需要餐具</option><option value="不需要餐具">不需要餐具</option></select>
+      </label>
+      <label class="field full"><span>訂單備註</span><textarea id="note" rows="4" maxlength="300" placeholder="例如：不要辣或其他備註"></textarea></label>
     </section>
   </main>
 
@@ -227,6 +230,6 @@
   </form>
 
   <script src="config.js?v=4066"></script>
-  <script src="app.js?v=4067"></script>
+  <script src="app.js?v=4068"></script>
 </body>
 </html>
