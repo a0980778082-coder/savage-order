@@ -608,8 +608,17 @@
     els.submitOverlay.hidden=true;
     document.body.classList.remove('is-submitting');
   }
-  function submitOrder(){
+  $('utensilsDialog')?.addEventListener('click',event=>{
+    const button=event.target.closest('[data-utensils]');
+    if(!button)return;
+    $('utensils').value=button.dataset.utensils;
+    $('utensilsDialog').close();
+    submitOrder(true);
+  });
+  $('closeUtensilsBtn')?.addEventListener('click',()=>$('utensilsDialog').close());
+  function submitOrder(utensilsConfirmed=false){
     if(state.submitting||!validate())return;
+    if(utensilsConfirmed!==true&&$('utensilsDialog')){$('utensilsDialog').showModal();return}
     if(buildOrderNote().length>300){toast('餐具需求與訂單備註合計請勿超過300字');$('note').focus();return}
     const meal=document.querySelector('input[name="mealPeriod"]:checked').value;
     const confirmText=`請確認送餐資訊：\n\n送餐日期：${displayDeliveryDate(els.deliveryDate.value)}\n餐期：${meal}\n地點：${els.mall.value}｜${els.building.value}｜${els.floor.value}\n櫃位：${$('counterName').value.trim()}\n餐具：${$('utensils')?.value||'未選擇'}\n\n確認後送出訂單？`;
