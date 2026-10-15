@@ -5,6 +5,9 @@
   let token = sessionStorage.getItem('savage_staff_token') || '';
   let allRows = [];
   let selectedMall = '';
+  let mallChipSettings = [];
+  let mallChipDate = '';
+  let ordersLoadId = 0;
   let selectedPeriod = '';
   let inventoryRows = [];
   let selectedDeliveryDate = '';
@@ -220,10 +223,26 @@
   });
   async function loadOrders() {
     if (!token) return;
+    const loadId = ++ordersLoadId;
+    const date = selectedDeliveryDate || localDateValue(new Date());
     $('loading').hidden = false; $('refreshBtn').disabled = true;
     try {
       // 後端只負責抓今天全部訂單，篩選由手機端即時完成，切換更快。
-      const r = await apiPost('staffOrders', {token, filters:{deliveryDate:selectedDeliveryDate||localDateValue(new Date())}});
+      const [ordersResult, settingsResult] = await Promise.allSettled([
+        apiPost('staffOrders', {token, filters:{deliveryDate:date}}),
+        apiPost('mallOrderingGet', {token,date})
+      ]);
+      if (loadId !== ordersLoadId) return;
+      if (ordersResult.status === 'rejected') throw ordersResult.reason;
+      const r = ordersResult.value;
+      const settings = settingsResult.status === 'fulfilled' ? settingsResult.value.data : null;
+      if (settings && settings.date === date && Array.isArray(settings.rows)) {
+        mallChipSettings = settings.rows;
+        mallChipDate = date;
+      } else {
+        if (mallChipDate !== date) mallChipSettings = [];
+        showToast('百貨外送設定讀取失敗，請重新整理；訂單仍正常顯示');
+      }
       allRows = normalizeOrderRows(r.rows || []);
       renderMealRequests(r.mealRequests||[]);
       announceNewOrders(allRows);
@@ -232,11 +251,15 @@
     } catch (e) {
       if (/登入已逾時|權限/.test(e.message)) { logout(); $('loginError').textContent = '登入已逾時，請重新登入'; }
       else showToast(e.message);
-    } finally { $('loading').hidden = true; $('refreshBtn').disabled = false; }
+    } finally { if (loadId === ordersLoadId) { $('loading').hidden = true; $('refreshBtn').disabled = false; } }
   }
 
   function renderMallChips() {
-    const malls = [...new Set(allRows.map(r => r['百貨']).filter(Boolean))];
+    const openMalls = mallChipDate === selectedDeliveryDate
+      ? mallChipSettings.filter(r => r.lunchOpen || r.dinnerOpen).map(r => r.mall)
+      : [];
+    // 保留既有訂單，即使該百貨暫停接新單，仍可查看及處理。
+    const malls = [...new Set([...openMalls, ...allRows.map(r => r['百貨'])].filter(Boolean))];
     if (selectedMall && !malls.includes(selectedMall)) selectedMall = '';
     $('mallChips').innerHTML = [`<button class="chip ${selectedMall===''?'active':''}" data-mall="">全部百貨</button>`]
       .concat(malls.map(m => `<button class="chip ${m===selectedMall?'active':''}" data-mall="${esc(m)}">${esc(m)}</button>`)).join('');
@@ -699,6 +722,10 @@
       if(!r.data||!Array.isArray(r.data.rows))throw Error('未收到儲存確認，請重新載入確認結果');
       const saved=r.data.rows.find(x=>x.mall===row.mall);
       if(!saved||r.data.date!==date||saved.lunchOpen!==payload.lunchOpen||saved.dinnerOpen!==payload.dinnerOpen||saved.reason!==payload.reason)throw Error('設定已變動，請重新載入確認結果');
+      if (date === selectedDeliveryDate) {
+        mallChipSettings = r.data.rows; mallChipDate = date;
+        renderMallChips(); render();
+      }
       Object.assign(row,saved);card.querySelector('[data-saved]').textContent='已儲存 · '+date;
       showToast(row.mall+' 接單設定已儲存','success');
     }catch(e){card.querySelector('[data-saved]').textContent='儲存未確認，請重試或重新載入';showToast(e.message,'error');$('retryMallOrderingBtn').hidden=false;}
