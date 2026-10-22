@@ -309,6 +309,41 @@
       <label><span>飯量</span>${amountSelect(portion.amount,name,index)}</label>
     </div>`).join('')}</div>`;
   }
+  // Sweet potato promotions have their own allowance, including economic bentos.
+  function isSweetPotatoAddon(item){
+    return String((item&&item['分類'])||'')==='冰心地瓜優惠';
+  }
+  function sweetPotatoRuleStatus(){
+    return {bentoQty:cartQtyBy(item=>isRegularBento(item)||isEconomicBento(item)),potatoQty:cartQtyBy(isSweetPotatoAddon)};
+  }
+  function enforceSweetPotatoLimit(showToast=false){
+    const status=sweetPotatoRuleStatus();
+    let excess=Math.max(0,status.potatoQty-status.bentoQty);
+    if(!excess)return;
+    [...state.cart.entries()].filter(([,entry])=>entry.qty>0&&isSweetPotatoAddon(entry.item)).reverse().forEach(([name,entry])=>{
+      const cut=Math.min(excess,entry.qty);entry.qty-=cut;excess-=cut;
+      const qtyEl=document.querySelector(`[data-qty="${cssEsc(name)}"]`);
+      if(qtyEl)qtyEl.textContent=entry.qty;
+    });
+    if(showToast)toast('地瓜加購數量已依餐盒份數調整，每份餐盒限一包');
+  }
+  function updateSweetPotatoAvailability(){
+    const status=sweetPotatoRuleStatus(),remaining=Math.max(0,status.bentoQty-status.potatoQty);
+    [...els.menuRoot.querySelectorAll('.menu-category')].filter(section=>section.dataset.category==='冰心地瓜優惠').forEach(section=>{
+      section.classList.toggle('addon-disabled',status.bentoQty===0);
+      const box=section.querySelector('.category-items');
+      let note=section.querySelector('.addon-rule-note');
+      if(!note&&box){note=document.createElement('div');note.className='addon-rule-note';box.prepend(note);}
+      if(note)note.textContent=status.bentoQty>0
+        ? `所有餐盒（含百元餐盒）每份可加購一包；已選 ${status.potatoQty} 包，還可加購 ${remaining} 包。與飲料優惠分開計算。`
+        : '請先選擇餐盒（含百元餐盒），即可加購250g冰心地瓜49元，每份限一包。';
+      section.querySelectorAll('[data-action="plus"]').forEach(btn=>{
+        btn.disabled=remaining<=0;
+        btn.title=status.bentoQty===0?'請先選擇餐盒':remaining===0?'每份餐盒限加購一包地瓜':'';
+      });
+    });
+  }
+
   function isAddonItem(item){
     const category=String((item&&item['分類'])||'');
     return category==='餐盒加購優惠'||category.includes('加購');
@@ -332,6 +367,7 @@
     };
   }
   function enforceAddonLimit(showToast=false){
+    enforceSweetPotatoLimit(showToast);
     const status=addonRuleStatus();
     let excess=Math.max(0,status.addonQty-status.regularQty);
     if(excess>0){
@@ -382,6 +418,11 @@
     const action=e.currentTarget.dataset.action;
     const limited=String(item['限量品']).toLowerCase()==='true',soldOut=String(item['今日售完']).toLowerCase()==='true'||(limited&&Number(item['每日庫存']||0)<=0);
     if(action==='plus'&&soldOut){toast(name+'今日已售完');return}
+    if(action==='plus'&&isSweetPotatoAddon(item)){
+      const status=sweetPotatoRuleStatus();
+      if(status.bentoQty===0){toast('請先選擇餐盒（含百元餐盒），才能加購冰心地瓜');return}
+      if(status.potatoQty>=status.bentoQty){toast('每份餐盒限加購一包冰心地瓜');return}
+    }
     if(action==='plus'&&isAddonItem(item)){
       const status=addonRuleStatus();
       if(status.regularQty<=0){
@@ -399,7 +440,7 @@
     state.cart.set(name,entry);
     document.querySelector(`[data-qty="${cssEsc(name)}"]`).textContent=entry.qty;
     renderPortionOptions(name);
-    enforceAddonLimit(action==='minus'&&isRegularBento(item));
+    enforceAddonLimit(action==='minus'&&(isRegularBento(item)||isEconomicBento(item)));
     updateSummary();
   }
   function onUnitCustomChange(e){
@@ -422,7 +463,7 @@
   }
   function updateSummary(){
     const entries=[...state.cart.values()].filter(x=>x.qty>0);const qty=entries.reduce((s,x)=>s+x.qty,0);const total=entries.reduce((s,x)=>s+Number(x.item['價格'])*x.qty,0);
-    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.dataset.cartEmpty=String(qty===0);updateAddonAvailability();applyOrderingAvailability();
+    els.totalQty.textContent=qty;els.totalPrice.textContent=total.toLocaleString('zh-TW');els.submitBtn.dataset.cartEmpty=String(qty===0);updateAddonAvailability();updateSweetPotatoAvailability();applyOrderingAvailability();
   }
 
 
@@ -561,6 +602,8 @@
     if(!/^[0-9+()\-\s]{8,20}$/.test($('contactPhone').value.trim())){toast('聯絡電話格式不正確');return false}
     const inv=document.querySelector('input[name="invoiceType"]:checked').value;if(inv!=='紙本發票'&&!els.invoiceCarrier.value.trim()){toast(inv==='手機條碼載具'?'請輸入載具號碼':'請輸入公司統編');return false}
     if(inv==='公司統編'&&!/^\d{8}$/.test(els.invoiceCarrier.value.trim())){toast('公司統編需為8碼數字');return false}
+    const potatoStatus=sweetPotatoRuleStatus();
+    if(potatoStatus.potatoQty>potatoStatus.bentoQty){toast('冰心地瓜需搭配餐盒，每份餐盒限加購一包');return false}
     const addonStatus=addonRuleStatus();
     if(addonStatus.addonQty>0&&addonStatus.regularQty===0){toast(addonStatus.economicQty>0?'百元外送餐盒不提供「餐盒加購優惠」':'加購優惠需搭配一般餐盒');return false}
     if(addonStatus.addonQty>addonStatus.regularQty){toast('餐盒加購優惠數量不可超過一般餐盒份數');return false}
