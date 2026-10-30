@@ -534,12 +534,15 @@
     }
     applyOrderingAvailability();
   }
-  function mallOrderingReason(){
+  function mallOrderingReason(selectedMeal){
     const date=els.deliveryDate.value,mall=els.mall.value;
-    const meal=(document.querySelector('input[name="mealPeriod"]:checked')||{}).value||'午餐';
-    const row=state.mallOrdering.find(r=>r.date===date&&r.mall===mall);
-    if(row&&((meal==='午餐'&&!row.lunchOpen)||(meal==='晚餐'&&!row.dinnerOpen)))return `${mall} ${date} ${meal}暫停配送${row.reason?'：'+row.reason:'，請選擇其他日期或餐期'}`;
-    return '';
+    const meal=selectedMeal||(document.querySelector('input[name="mealPeriod"]:checked')||{}).value;
+    if(!date||!mall||!meal)return '';
+    const weekday=new Date(date+'T00:00:00Z').getUTCDay();
+    const row=state.mallOrdering.find(r=>r.mall===mall&&
+      (r.date===date||(Number.isInteger(r.weekday)&&r.weekday===weekday&&date>=(r.effectiveFrom||'')))&&
+      ((meal==='午餐'&&!r.lunchOpen)||(meal==='晚餐'&&!r.dinnerOpen)));
+    return row?`${mall} ${date} ${meal}暫停配送${row.reason?'：'+row.reason:'，請選擇其他日期或餐期'}`:'';
   }
   let mallOrderingRefreshing=false;
   async function refreshMallOrdering(){
@@ -551,9 +554,11 @@
   }
   function applyOrderingAvailability(){
     document.querySelectorAll('input[name="mealPeriod"]').forEach(r=>{
-      const closed=!!cutoffReason(els.deliveryDate.value,r.value);
-      r.disabled=closed;
-      r.nextElementSibling.textContent=r.value+(closed?'（已截止）':'');
+      const cutoff=!!cutoffReason(els.deliveryDate.value,r.value);
+      const unavailable=!!mallOrderingReason(r.value);
+      r.disabled=cutoff||unavailable;
+      if(r.disabled)r.checked=false;
+      r.nextElementSibling.textContent=r.value+(cutoff?'（已截止）':unavailable?'（暫停配送）':'');
     });
     const reason=orderingBlockReason();
     const cartEmpty=els.submitBtn.dataset.cartEmpty!=='false';
